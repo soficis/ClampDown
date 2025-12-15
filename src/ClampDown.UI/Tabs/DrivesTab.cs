@@ -1,0 +1,304 @@
+using System.ComponentModel;
+using System.Text;
+using System.Windows.Forms;
+using ClampDown.Core.Models;
+using ClampDown.Core.Services;
+using ClampDown.Win32;
+
+namespace ClampDown.UI.Tabs;
+
+public sealed class DrivesTab : UserControl
+{
+    private readonly UiServices _services;
+
+    private readonly DataGridView _drivesGrid;
+    private readonly BindingList<DriveRow> _drives = new();
+
+    private readonly Button _refreshButton;
+    private readonly Button _closeExplorerButton;
+    private readonly Button _stopAppsButton;
+    private readonly Button _showLockersButton;
+    private readonly Button _safeEjectButton;
+
+    public DrivesTab(UiServices services)
+    {
+        _services = services;
+
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(12)
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        Controls.Add(root);
+
+        var top = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
+        _refreshButton = new Button { Text = "Refresh" };
+        _refreshButton.Click += (_, _) => ReloadDrives();
+        top.Controls.Add(_refreshButton);
+        root.Controls.Add(top);
+
+        _drivesGrid = BuildDrivesGrid();
+        root.Controls.Add(_drivesGrid);
+
+        var bottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
+        _closeExplorerButton = new Button { Text = "Close Explorer" };
+        _closeExplorerButton.Click += (_, _) => CloseExplorerForSelectedDrive();
+
+        _stopAppsButton = new Button { Text = "Stop Apps" };
+        _stopAppsButton.Click += async (_, _) => await StopAppsFromSelectedDriveAsync();
+
+        _showLockersButton = new Button { Text = "Show Lockers" };
+        _showLockersButton.Click += async (_, _) => await ShowDriveLockersAsync();
+
+        _safeEjectButton = new Button { Text = "Safe Eject" };
+        _safeEjectButton.Click += async (_, _) => await SafeEjectSelectedDriveAsync();
+
+        bottom.Controls.AddRange(new Control[] { _closeExplorerButton, _stopAppsButton, _showLockersButton, _safeEjectButton });
+        root.Controls.Add(bottom);
+
+        ReloadDrives();
+        UpdateButtons();
+
+        // Apply theme
+        _services.ThemeManager.ApplyToControl(this);
+        _services.ThemeManager.ThemeChanged += (_, _) => _services.ThemeManager.ApplyToControl(this);
+    }
+
+    private DataGridView BuildDrivesGrid()
+    {
+        var grid = new DataGridView
+        {
+            Dock = DockStyle.Fill,
+            AutoGenerateColumns = false,
+            ReadOnly = true,
+            MultiSelect = false,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            DataSource = _drives
+        };
+
+        grid.SelectionChanged += (_, _) => UpdateButtons();
+
+        grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(DriveRow.DriveLetter), HeaderText = "Drive", Width = 70 });
+        grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(DriveRow.Name), HeaderText = "Name", Width = 220 });
+        grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(DriveRow.Summary), HeaderText = "Details", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(DriveRow.FreeSpace), HeaderText = "Free", Width = 120 });
+        grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(DriveRow.TotalSize), HeaderText = "Total", Width = 120 });
+
+        return grid;
+    }
+
+    private void ReloadDrives()
+    {
+        _drives.Clear();
+
+        foreach (var drive in DriveDiscovery.GetRemovableDrives())
+        {
+            _drives.Add(new DriveRow
+            {
+                DriveLetter = drive.DriveLetter,
+                Name = string.IsNullOrWhiteSpace(drive.VolumeLabel) ? drive.DriveLetter : drive.VolumeLabel,
+                RootPath = drive.RootPath,
+                DeviceInstanceId = drive.DeviceInstanceId,
+                Summary = BuildDriveSummary(drive),
+                FreeSpace = drive.FreeSpaceBytes.HasValue ? UiFormat.FormatBytes(drive.FreeSpaceBytes.Value) : "Unknown",
+                TotalSize = drive.TotalSizeBytes.HasValue ? UiFormat.FormatBytes(drive.TotalSizeBytes.Value) : "Unknown"
+            });
+        }
+    }
+
+    private static string BuildDriveSummary(RemovableDriveInfo drive)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(drive.InterfaceType))
+            parts.Add(drive.InterfaceType);
+        if (!string.IsNullOrWhiteSpace(drive.FileSystem))
+            parts.Add(drive.FileSystem);
+        if (!string.IsNullOrWhiteSpace(drive.Model))
+            parts.Add(drive.Model);
+        return parts.Count == 0 ? "Removable" : string.Join(" • ", parts);
+    }
+
+    private DriveRow? GetSelectedDrive()
+    {
+        if (_drivesGrid.SelectedRows.Count == 0)
+            return null;
+        return _drivesGrid.SelectedRows[0].DataBoundItem as DriveRow;
+    }
+
+    private void UpdateButtons()
+    {
+        var hasSelection = GetSelectedDrive() != null;
+        _closeExplorerButton.Enabled = hasSelection;
+        _stopAppsButton.Enabled = hasSelection;
+        _showLockersButton.Enabled = hasSelection;
+        _safeEjectButton.Enabled = hasSelection;
+    }
+
+    private void CloseExplorerForSelectedDrive()
+    {
+        var drive = GetSelectedDrive();
+        if (drive == null)
+            return;
+
+        try
+        {
+            var closed = ExplorerWindowService.CloseExplorerWindowsWithPathPrefix(drive.RootPath);
+            _services.ActionLogger.Log(ActionType.DriveAnalyze, drive.DriveLetter, ActionResult.Success, details: $"Closed {closed} Explorer window(s).");
+            MessageBox.Show(this, closed == 0 ? "No Explorer windows detected." : $"Closed {closed} Explorer window(s).", "Close Explorer", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            _services.ActionLogger.Log(ActionType.DriveAnalyze, drive.DriveLetter, ActionResult.Failed, details: ex.Message);
+            MessageBox.Show(this, ex.Message, "Close Explorer failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private async Task ShowDriveLockersAsync()
+    {
+        var drive = GetSelectedDrive();
+        if (drive == null)
+            return;
+
+        try
+        {
+            var lockers = _services.FileLockAnalysisService.AnalyzePath(drive.RootPath, scanRecursively: false);
+            _services.ActionLogger.Log(ActionType.DriveAnalyze, drive.DriveLetter, ActionResult.Success, details: $"Found {lockers.Count} locker(s).");
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"{drive.DriveLetter} ({drive.Name})");
+            sb.AppendLine(drive.RootPath);
+            sb.AppendLine();
+
+            if (lockers.Count == 0)
+            {
+                sb.AppendLine("No lockers detected via Restart Manager.");
+            }
+            else
+            {
+                foreach (var locker in lockers)
+                    sb.AppendLine($"{locker.ProcessName}\t{locker.ProcessId}\t{locker.Description}");
+            }
+
+            Clipboard.SetText(sb.ToString());
+            MessageBox.Show(this, "Drive lockers copied to clipboard.", "Drive lockers", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            _services.ActionLogger.Log(ActionType.DriveAnalyze, drive.DriveLetter, ActionResult.Failed, details: ex.Message);
+            MessageBox.Show(this, ex.Message, "Analyze failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private async Task StopAppsFromSelectedDriveAsync()
+    {
+        var drive = GetSelectedDrive();
+        if (drive == null)
+            return;
+
+        IReadOnlyList<RunningProcessInfo> processes;
+        try
+        {
+            processes = _services.ProcessDiscoveryService.FindProcessesWithExecutableUnderPath(drive.RootPath);
+        }
+        catch (Exception ex)
+        {
+            _services.ActionLogger.Log(ActionType.DriveAnalyze, drive.DriveLetter, ActionResult.Failed, details: ex.Message);
+            MessageBox.Show(this, ex.Message, "Stop apps", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
+        if (processes.Count == 0)
+        {
+            MessageBox.Show(this, "No running apps detected as launched from this drive.", "Stop apps", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Apps launched from this drive:");
+        sb.AppendLine();
+        foreach (var p in processes)
+            sb.AppendLine($"{p.ProcessName} ({p.ProcessId})\t{p.ExecutablePath}");
+
+        var action = MessageBox.Show(this, sb.ToString() + "\r\n\r\nClose apps? (No = Force kill)", "Stop apps", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
+        if (action == DialogResult.Cancel)
+            return;
+
+        if (action == DialogResult.No)
+        {
+            if (!UiPrompt.PromptTypedConfirmation(this, "Force kill apps", "Force killing may lose unsaved work.", "KILL"))
+                return;
+
+            foreach (var p in processes)
+            {
+                var result = _services.ProcessTerminator.ForceTerminate(p.ProcessId, killEntireTree: true);
+                _services.ActionLogger.Log(ActionType.ProcessTerminate, $"{p.ProcessName} ({p.ProcessId})", result.IsSuccess ? ActionResult.Success : ActionResult.Failed, EscalationLevel.Force, result.ErrorMessage ?? "");
+            }
+
+            MessageBox.Show(this, "Requested termination for detected processes.", "Force kill", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        foreach (var p in processes)
+        {
+            var result = _services.ProcessTerminator.TryGracefulClose(p.ProcessId, TimeSpan.FromSeconds(5));
+            _services.ActionLogger.Log(ActionType.ProcessClose, $"{p.ProcessName} ({p.ProcessId})", result.IsSuccess ? ActionResult.Success : ActionResult.Failed, EscalationLevel.Graceful, result.ErrorMessage ?? "");
+        }
+
+        MessageBox.Show(this, "Requested close for detected processes.", "Close apps", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        await Task.CompletedTask;
+    }
+
+    private async Task SafeEjectSelectedDriveAsync()
+    {
+        var drive = GetSelectedDrive();
+        if (drive == null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(drive.DeviceInstanceId))
+        {
+            MessageBox.Show(this, "Unable to map this drive to a device instance ID.", "Safe eject", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        try
+        {
+            var result = DriveOperations.RequestDeviceEject(drive.DeviceInstanceId);
+            if (result.Success)
+            {
+                _services.ActionLogger.Log(ActionType.DriveEject, drive.DriveLetter, ActionResult.Success);
+                MessageBox.Show(this, "Eject request succeeded.", "Safe eject", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ReloadDrives();
+                return;
+            }
+
+            _services.ActionLogger.Log(ActionType.DriveEject, drive.DriveLetter, ActionResult.Failed, details: result.ErrorMessage ?? "");
+            MessageBox.Show(this, result.ErrorMessage ?? "The device could not be ejected.", "Eject was vetoed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        catch (Exception ex)
+        {
+            _services.ActionLogger.Log(ActionType.DriveEject, drive.DriveLetter, ActionResult.Failed, details: ex.Message);
+            MessageBox.Show(this, ex.Message, "Safe eject failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private sealed class DriveRow
+    {
+        public required string DriveLetter { get; init; }
+        public required string Name { get; init; }
+        public required string RootPath { get; init; }
+        public required string Summary { get; init; }
+        public required string FreeSpace { get; init; }
+        public required string TotalSize { get; init; }
+        public string? DeviceInstanceId { get; init; }
+    }
+}
+

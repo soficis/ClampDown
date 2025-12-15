@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ClampDown.UI (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "ClampDown.UI (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

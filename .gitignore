@@ -1,0 +1,74 @@
+# Binaries and executables
+*.exe
+*.dll
+*.pdb
+*.exe.config
+*.dll.config
+
+# Build outputs
+bin/
+obj/
+dist/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.tmp
+*.temp
+
+# Rider IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Linux
+*~
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+.nuget/
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# User-specific files
+*.user
+*.rsuser
+
+# Documentation
+docs/
+
+# Room modes
+.roomodes
