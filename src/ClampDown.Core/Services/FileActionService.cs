@@ -8,11 +8,60 @@ public sealed class FileActionService
 {
     private readonly ActionLogger _actionLogger;
     private readonly FileLockAnalysisService _analysisService;
+    private readonly RebootScheduleService _rebootScheduleService;
 
-    public FileActionService(ActionLogger actionLogger, FileLockAnalysisService analysisService)
+    public FileActionService(
+        ActionLogger actionLogger,
+        FileLockAnalysisService analysisService,
+        RebootScheduleService? rebootScheduleService = null)
     {
         _actionLogger = actionLogger;
         _analysisService = analysisService;
+        _rebootScheduleService = rebootScheduleService ?? new RebootScheduleService(new ElevatedHelperClient());
+    }
+
+    public FileOperationResult TryScheduleDeleteOnReboot(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+            throw new ArgumentException("File path cannot be empty.", nameof(filePath));
+
+        var normalizedPath = Path.GetFullPath(filePath);
+        if (!File.Exists(normalizedPath))
+        {
+            _actionLogger.Log(ActionType.ScheduleRebootDelete, normalizedPath, ActionResult.Failed, details: "File not found.");
+            return Failure(normalizedPath, FileOperationStatus.NotFound, "File not found.");
+        }
+
+        var schedule = _rebootScheduleService.TryScheduleDeleteOnReboot(normalizedPath, helperTimeout: TimeSpan.FromSeconds(8));
+        if (!schedule.Success)
+        {
+            _actionLogger.Log(
+                ActionType.ScheduleRebootDelete,
+                normalizedPath,
+                ActionResult.Failed,
+                EscalationLevel.Scheduled,
+                schedule.ErrorMessage ?? "Scheduling failed.",
+                win32Error: schedule.Win32ErrorCode,
+                elevationUsed: schedule.ElevationUsed);
+
+            return Failure(normalizedPath, FileOperationStatus.LockedByProcess, schedule.ErrorMessage ?? "Scheduling failed.");
+        }
+
+        _actionLogger.Log(
+            ActionType.ScheduleRebootDelete,
+            normalizedPath,
+            ActionResult.RequiresReboot,
+            EscalationLevel.Scheduled,
+            details: "Scheduled delete at reboot.",
+            win32Error: schedule.Win32ErrorCode,
+            elevationUsed: schedule.ElevationUsed);
+
+        return new FileOperationResult
+        {
+            Success = true,
+            FilePath = normalizedPath,
+            Status = FileOperationStatus.ScheduledForReboot
+        };
     }
 
     public FileOperationResult TryDelete(string filePath, bool sendToRecycleBin, bool scheduleOnRebootIfBlocked)
@@ -66,7 +115,7 @@ public sealed class FileActionService
                 analysisPath: normalizedPath,
                 ex,
                 scheduleOnRebootIfBlocked,
-                () => FileOperations.ScheduleDeleteOnReboot(normalizedPath));
+                scheduleAction: () => _rebootScheduleService.TryScheduleDeleteOnReboot(normalizedPath, helperTimeout: TimeSpan.FromSeconds(8)));
         }
         catch (Win32Exception ex)
         {
@@ -76,7 +125,7 @@ public sealed class FileActionService
                 analysisPath: normalizedPath,
                 ex,
                 scheduleOnRebootIfBlocked,
-                () => FileOperations.ScheduleDeleteOnReboot(normalizedPath));
+                scheduleAction: () => _rebootScheduleService.TryScheduleDeleteOnReboot(normalizedPath, helperTimeout: TimeSpan.FromSeconds(8)));
         }
     }
 
@@ -122,7 +171,7 @@ public sealed class FileActionService
                 analysisPath: normalizedSource,
                 ex,
                 scheduleOnRebootIfBlocked,
-                () => FileOperations.ScheduleMoveOnReboot(normalizedSource, normalizedDest));
+                scheduleAction: () => _rebootScheduleService.TryScheduleMoveOnReboot(normalizedSource, normalizedDest, helperTimeout: TimeSpan.FromSeconds(8)));
         }
         catch (Win32Exception ex)
         {
@@ -132,7 +181,7 @@ public sealed class FileActionService
                 analysisPath: normalizedSource,
                 ex,
                 scheduleOnRebootIfBlocked,
-                () => FileOperations.ScheduleMoveOnReboot(normalizedSource, normalizedDest));
+                scheduleAction: () => _rebootScheduleService.TryScheduleMoveOnReboot(normalizedSource, normalizedDest, helperTimeout: TimeSpan.FromSeconds(8)));
         }
     }
 
@@ -184,16 +233,24 @@ public sealed class FileActionService
         string analysisPath,
         Exception ex,
         bool scheduleOnRebootIfBlocked,
-        Action? scheduleAction = null)
+        Func<RebootScheduleResult>? scheduleAction = null)
     {
         var lockers = _analysisService.AnalyzePath(analysisPath, scanRecursively: false);
 
         if (scheduleOnRebootIfBlocked && scheduleAction != null)
         {
-            try
+            var scheduleResult = scheduleAction();
+            if (scheduleResult.Success)
             {
-                scheduleAction();
-                _actionLogger.Log(type, target, ActionResult.RequiresReboot, EscalationLevel.Scheduled, ex.Message);
+                _actionLogger.Log(
+                    type,
+                    target,
+                    ActionResult.RequiresReboot,
+                    EscalationLevel.Scheduled,
+                    ex.Message,
+                    win32Error: scheduleResult.Win32ErrorCode,
+                    elevationUsed: scheduleResult.ElevationUsed);
+
                 return new FileOperationResult
                 {
                     Success = true,
@@ -203,11 +260,17 @@ public sealed class FileActionService
                     Lockers = lockers.ToList()
                 };
             }
-            catch (Exception scheduleEx)
-            {
-                _actionLogger.Log(type, target, ActionResult.Failed, EscalationLevel.Scheduled, scheduleEx.Message);
-                return Failure(target, FileOperationStatus.LockedByProcess, scheduleEx.Message, lockers);
-            }
+
+            _actionLogger.Log(
+                type,
+                target,
+                ActionResult.Failed,
+                EscalationLevel.Scheduled,
+                scheduleResult.ErrorMessage ?? "Scheduling failed.",
+                win32Error: scheduleResult.Win32ErrorCode,
+                elevationUsed: scheduleResult.ElevationUsed);
+
+            return Failure(target, FileOperationStatus.LockedByProcess, scheduleResult.ErrorMessage ?? ex.Message, lockers);
         }
 
         _actionLogger.Log(type, target, ActionResult.Failed, EscalationLevel.Info, ex.Message);

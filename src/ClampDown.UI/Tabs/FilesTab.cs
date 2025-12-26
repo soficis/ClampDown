@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Text;
 using System.Windows.Forms;
 using ClampDown.Core.Models;
-using ClampDown.Win32;
 
 namespace ClampDown.UI.Tabs;
 
@@ -49,12 +48,12 @@ public sealed class FilesTab : UserControl
         _pathTextBox.DragEnter += PathTextBox_DragEnter;
         _pathTextBox.DragDrop += PathTextBox_DragDrop;
 
-        var browseFile = new Button { Text = "Browse File…" };
+        var browseFile = new Button { Text = "Browse File…", AutoSize = true };
         browseFile.Click += (_, _) => BrowseFile();
-        var browseFolder = new Button { Text = "Browse Folder…" };
+        var browseFolder = new Button { Text = "Browse Folder…", AutoSize = true };
         browseFolder.Click += (_, _) => BrowseFolder();
 
-        _analyzeButton = new Button { Text = "Analyze" };
+        _analyzeButton = new Button { Text = "Analyze", AutoSize = true };
         _analyzeButton.Click += async (_, _) => await AnalyzeAsync();
 
         _recursiveCheckBox = new CheckBox { Text = "Scan recursively", AutoSize = true };
@@ -71,28 +70,28 @@ public sealed class FilesTab : UserControl
         root.Controls.Add(_lockersGrid);
 
         var bottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
-        _closeSelectedButton = new Button { Text = "Close Selected Apps" };
+        _closeSelectedButton = new Button { Text = "Close Selected Apps", AutoSize = true };
         _closeSelectedButton.Click += async (_, _) => await CloseSelectedAsync(force: false);
 
-        _forceKillSelectedButton = new Button { Text = "Force Kill Selected" };
+        _forceKillSelectedButton = new Button { Text = "Force Kill Selected", AutoSize = true };
         _forceKillSelectedButton.Click += async (_, _) => await CloseSelectedAsync(force: true);
 
-        _unlockDeleteButton = new Button { Text = "Unlock && Delete" };
+        _unlockDeleteButton = new Button { Text = "Unlock && Delete", AutoSize = true };
         _unlockDeleteButton.Click += async (_, _) => await UnlockDeleteAsync();
 
-        _unlockRenameButton = new Button { Text = "Unlock && Rename" };
+        _unlockRenameButton = new Button { Text = "Unlock && Rename", AutoSize = true };
         _unlockRenameButton.Click += async (_, _) => await UnlockRenameAsync();
 
-        _unlockMoveButton = new Button { Text = "Unlock && Move" };
+        _unlockMoveButton = new Button { Text = "Unlock && Move", AutoSize = true };
         _unlockMoveButton.Click += async (_, _) => await UnlockMoveAsync();
 
-        _unlockCopyButton = new Button { Text = "Unlock && Copy" };
+        _unlockCopyButton = new Button { Text = "Unlock && Copy", AutoSize = true };
         _unlockCopyButton.Click += async (_, _) => await UnlockCopyAsync();
 
-        _scheduleDeleteButton = new Button { Text = "Schedule Delete at Reboot" };
+        _scheduleDeleteButton = new Button { Text = "Schedule Delete at Reboot", AutoSize = true };
         _scheduleDeleteButton.Click += (_, _) => ScheduleDeleteAtReboot();
 
-        _copyBlockersButton = new Button { Text = "Copy Blockers" };
+        _copyBlockersButton = new Button { Text = "Copy Blockers", AutoSize = true };
         _copyBlockersButton.Click += (_, _) => CopyBlockersToClipboard();
 
         bottom.Controls.AddRange(new Control[]
@@ -392,17 +391,14 @@ public sealed class FilesTab : UserControl
         if (ok != DialogResult.Yes)
             return;
 
-        try
+        var result = _services.FileActionService.TryScheduleDeleteOnReboot(path);
+        if (result.Success)
         {
-            FileOperations.ScheduleDeleteOnReboot(Path.GetFullPath(path));
-            _services.ActionLogger.Log(ActionType.ScheduleRebootDelete, path, ActionResult.RequiresReboot, EscalationLevel.Scheduled);
             MessageBox.Show(this, "Delete scheduled for next reboot.", "Scheduled", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
         }
-        catch (Exception ex)
-        {
-            _services.ActionLogger.Log(ActionType.ScheduleRebootDelete, path, ActionResult.Failed, EscalationLevel.Scheduled, ex.Message);
-            MessageBox.Show(this, ex.Message, "Schedule failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
+
+        MessageBox.Show(this, result.ErrorMessage ?? "Scheduling failed.", "Schedule failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 
     private void CopyBlockersToClipboard()
@@ -454,4 +450,3 @@ public sealed class FilesTab : UserControl
         _copyBlockersButton.Enabled = _lockers.Count > 0;
     }
 }
-

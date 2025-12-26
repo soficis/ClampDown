@@ -65,6 +65,8 @@ static Task<HelperResponse> HandleAsync(HelperRequest request)
         HelperCommand.KillProcess => Task.FromResult(HandleKillProcess(request)),
         HelperCommand.RequestDeviceEject => Task.FromResult(HandleDeviceEject(request)),
         HelperCommand.ForceDismountVolume => Task.FromResult(HandleDismount(request)),
+        HelperCommand.ScheduleDeleteOnReboot => Task.FromResult(HandleScheduleDelete(request)),
+        HelperCommand.ScheduleMoveOnReboot => Task.FromResult(HandleScheduleMove(request)),
         _ => Task.FromResult(new HelperResponse
         {
             CorrelationId = request.CorrelationId,
@@ -72,6 +74,122 @@ static Task<HelperResponse> HandleAsync(HelperRequest request)
             ErrorMessage = $"Unknown command: {request.Command}"
         })
     };
+}
+
+static HelperResponse HandleScheduleDelete(HelperRequest request)
+{
+    if (!request.UserConfirmed)
+    {
+        return new HelperResponse
+        {
+            CorrelationId = request.CorrelationId,
+            Success = false,
+            ErrorMessage = "UserConfirmed was not set."
+        };
+    }
+
+    if (string.IsNullOrWhiteSpace(request.SourcePath))
+    {
+        return new HelperResponse
+        {
+            CorrelationId = request.CorrelationId,
+            Success = false,
+            ErrorMessage = "SourcePath was not provided."
+        };
+    }
+
+    try
+    {
+        FileOperations.ScheduleDeleteOnReboot(request.SourcePath);
+        return new HelperResponse
+        {
+            CorrelationId = request.CorrelationId,
+            Success = true,
+            Details = "Delete scheduled for next reboot."
+        };
+    }
+    catch (Win32Exception ex)
+    {
+        return new HelperResponse
+        {
+            CorrelationId = request.CorrelationId,
+            Success = false,
+            ErrorMessage = ex.Message,
+            Win32ErrorCode = ex.NativeErrorCode
+        };
+    }
+    catch (Exception ex)
+    {
+        return new HelperResponse
+        {
+            CorrelationId = request.CorrelationId,
+            Success = false,
+            ErrorMessage = ex.Message
+        };
+    }
+}
+
+static HelperResponse HandleScheduleMove(HelperRequest request)
+{
+    if (!request.UserConfirmed)
+    {
+        return new HelperResponse
+        {
+            CorrelationId = request.CorrelationId,
+            Success = false,
+            ErrorMessage = "UserConfirmed was not set."
+        };
+    }
+
+    if (string.IsNullOrWhiteSpace(request.SourcePath))
+    {
+        return new HelperResponse
+        {
+            CorrelationId = request.CorrelationId,
+            Success = false,
+            ErrorMessage = "SourcePath was not provided."
+        };
+    }
+
+    if (string.IsNullOrWhiteSpace(request.DestinationPath))
+    {
+        return new HelperResponse
+        {
+            CorrelationId = request.CorrelationId,
+            Success = false,
+            ErrorMessage = "DestinationPath was not provided."
+        };
+    }
+
+    try
+    {
+        FileOperations.ScheduleMoveOnReboot(request.SourcePath, request.DestinationPath);
+        return new HelperResponse
+        {
+            CorrelationId = request.CorrelationId,
+            Success = true,
+            Details = "Move scheduled for next reboot."
+        };
+    }
+    catch (Win32Exception ex)
+    {
+        return new HelperResponse
+        {
+            CorrelationId = request.CorrelationId,
+            Success = false,
+            ErrorMessage = ex.Message,
+            Win32ErrorCode = ex.NativeErrorCode
+        };
+    }
+    catch (Exception ex)
+    {
+        return new HelperResponse
+        {
+            CorrelationId = request.CorrelationId,
+            Success = false,
+            ErrorMessage = ex.Message
+        };
+    }
 }
 
 static HelperResponse HandleKillProcess(HelperRequest request)

@@ -4,7 +4,9 @@ public enum HelperCommand
 {
     KillProcess = 1,
     RequestDeviceEject = 2,
-    ForceDismountVolume = 3
+    ForceDismountVolume = 3,
+    ScheduleDeleteOnReboot = 4,
+    ScheduleMoveOnReboot = 5
 }
 
 public sealed record HelperRequest
@@ -16,6 +18,9 @@ public sealed record HelperRequest
 
     public int? ProcessId { get; init; }
     public bool? KillProcessTree { get; init; }
+
+    public string? SourcePath { get; init; }
+    public string? DestinationPath { get; init; }
 
     public string? DeviceInstanceId { get; init; }
     public string? DriveLetter { get; init; }
@@ -29,4 +34,3 @@ public sealed record HelperResponse
     public int? Win32ErrorCode { get; init; }
     public string? Details { get; init; }
 }
-

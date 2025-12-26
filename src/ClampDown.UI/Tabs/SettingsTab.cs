@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows.Forms;
 using ClampDown.Core.Models;
+using ClampDown.Core.Services;
 using Microsoft.Win32;
 
 namespace ClampDown.UI.Tabs;
@@ -89,10 +90,10 @@ public sealed class SettingsTab : UserControl
 
     private async Task StartHelperAsync()
     {
-        var helperExePath = Path.Combine(AppContext.BaseDirectory, "ClampDown.Helper.exe");
-        if (!File.Exists(helperExePath))
+        var helperExePath = HelperProcessLocator.FindHelperExecutablePath();
+        if (string.IsNullOrWhiteSpace(helperExePath) || !File.Exists(helperExePath))
         {
-            MessageBox.Show(this, $"Expected: {helperExePath}", "Helper not found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, "ClampDown.Helper.exe was not found.", "Helper not found", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
@@ -194,4 +195,3 @@ public sealed class SettingsTab : UserControl
         key.SetValue("ClampDown", $"\"{exePath}\"", RegistryValueKind.String);
     }
 }
-

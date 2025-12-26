@@ -29,16 +29,16 @@ public sealed class LogsTab : UserControl
         root.Controls.Add(_grid);
 
         var bottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
-        var exportJson = new Button { Text = "Export JSON…" };
+        var exportJson = new Button { Text = "Export JSON…", AutoSize = true };
         exportJson.Click += async (_, _) => await ExportLogsAsync("json");
 
-        var exportMarkdown = new Button { Text = "Export Markdown…" };
+        var exportMarkdown = new Button { Text = "Export Markdown…", AutoSize = true };
         exportMarkdown.Click += async (_, _) => await ExportLogsAsync("md");
 
-        var exportBundle = new Button { Text = "Export Support Bundle…" };
+        var exportBundle = new Button { Text = "Export Support Bundle…", AutoSize = true };
         exportBundle.Click += async (_, _) => await ExportSupportBundleAsync();
 
-        var clear = new Button { Text = "Clear Log" };
+        var clear = new Button { Text = "Clear Log", AutoSize = true };
         clear.Click += (_, _) => ClearLogs();
 
         bottom.Controls.AddRange(new Control[] { exportJson, exportMarkdown, exportBundle, clear });
