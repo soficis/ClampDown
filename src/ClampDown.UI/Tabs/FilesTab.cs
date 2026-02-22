@@ -172,7 +172,7 @@ public sealed class FilesTab : UserControl
         try
         {
             _lockers.Clear();
-            var lockers = _services.FileLockAnalysisService.AnalyzePath(path, _recursiveCheckBox.Checked);
+            var lockers = await Task.Run(() => _services.FileLockAnalysisService.AnalyzePath(path, _recursiveCheckBox.Checked));
             foreach (var locker in lockers)
                 _lockers.Add(locker);
 
@@ -187,7 +187,6 @@ public sealed class FilesTab : UserControl
         finally
         {
             UpdateButtons();
-            await Task.CompletedTask;
         }
     }
 
@@ -212,9 +211,9 @@ public sealed class FilesTab : UserControl
 
         foreach (var locker in selected)
         {
-            var result = force
+            var result = await Task.Run(() => force
                 ? _services.ProcessTerminator.ForceTerminate(locker.ProcessId, killEntireTree: false)
-                : _services.ProcessTerminator.TryGracefulClose(locker.ProcessId, TimeSpan.FromSeconds(5));
+                : _services.ProcessTerminator.TryGracefulClose(locker.ProcessId, TimeSpan.FromSeconds(5)));
 
             _services.ActionLogger.Log(
                 force ? ActionType.ProcessTerminate : ActionType.ProcessClose,
@@ -260,7 +259,13 @@ public sealed class FilesTab : UserControl
             }
         }
 
-        var result = _services.FileActionService.TryDelete(path, sendToRecycleBin: true, scheduleOnRebootIfBlocked: true);
+        var result = await Task.Run(() => _services.FileActionService.Delete(new DeleteFileRequest
+        {
+            FilePath = path,
+            DeleteMode = DeleteMode.RecycleBin,
+            OnBlocked = OnBlockedBehavior.ScheduleOnReboot
+        }));
+
         if (result.Status == FileOperationStatus.ScheduledForReboot)
         {
             MessageBox.Show(this, "File delete scheduled for next reboot.", "Scheduled", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -294,7 +299,12 @@ public sealed class FilesTab : UserControl
             return;
 
         var dest = Path.Combine(Path.GetDirectoryName(path)!, newName);
-        var result = _services.FileActionService.TryMove(path, dest, scheduleOnRebootIfBlocked: true);
+        var result = await Task.Run(() => _services.FileActionService.Move(new MoveFileRequest
+        {
+            SourcePath = path,
+            DestinationPath = dest,
+            OnBlocked = OnBlockedBehavior.ScheduleOnReboot
+        }));
 
         if (result.Status == FileOperationStatus.ScheduledForReboot)
         {
@@ -328,7 +338,12 @@ public sealed class FilesTab : UserControl
             return;
 
         var dest = Path.Combine(folder.SelectedPath, Path.GetFileName(path));
-        var result = _services.FileActionService.TryMove(path, dest, scheduleOnRebootIfBlocked: true);
+        var result = await Task.Run(() => _services.FileActionService.Move(new MoveFileRequest
+        {
+            SourcePath = path,
+            DestinationPath = dest,
+            OnBlocked = OnBlockedBehavior.ScheduleOnReboot
+        }));
 
         if (result.Status == FileOperationStatus.ScheduledForReboot)
         {
@@ -361,7 +376,12 @@ public sealed class FilesTab : UserControl
         if (save.ShowDialog(this) != DialogResult.OK)
             return;
 
-        var result = _services.FileActionService.TryCopy(path, save.FileName);
+        var result = await Task.Run(() => _services.FileActionService.Copy(new CopyFileRequest
+        {
+            SourcePath = path,
+            DestinationPath = save.FileName
+        }));
+
         if (!result.Success)
         {
             MessageBox.Show(this, result.ErrorMessage ?? "Copy failed.", "Copy failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -369,7 +389,6 @@ public sealed class FilesTab : UserControl
         }
 
         MessageBox.Show(this, $"Copied to: {save.FileName}", "Copied", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        await Task.CompletedTask;
     }
 
     private void ScheduleDeleteAtReboot()
@@ -391,7 +410,7 @@ public sealed class FilesTab : UserControl
         if (ok != DialogResult.Yes)
             return;
 
-        var result = _services.FileActionService.TryScheduleDeleteOnReboot(path);
+        var result = _services.FileActionService.ScheduleDeleteOnReboot(path);
         if (result.Success)
         {
             MessageBox.Show(this, "Delete scheduled for next reboot.", "Scheduled", MessageBoxButtons.OK, MessageBoxIcon.Information);

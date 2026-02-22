@@ -1,6 +1,6 @@
 using System.ComponentModel;
+using ClampDown.Core.Abstractions;
 using ClampDown.Core.Models;
-using ClampDown.Win32;
 
 namespace ClampDown.Core.Services;
 
@@ -9,18 +9,21 @@ public sealed class FileActionService
     private readonly ActionLogger _actionLogger;
     private readonly FileLockAnalysisService _analysisService;
     private readonly RebootScheduleService _rebootScheduleService;
+    private readonly IFilePlatformOperations _filePlatformOperations;
 
     public FileActionService(
         ActionLogger actionLogger,
         FileLockAnalysisService analysisService,
-        RebootScheduleService? rebootScheduleService = null)
+        RebootScheduleService rebootScheduleService,
+        IFilePlatformOperations filePlatformOperations)
     {
         _actionLogger = actionLogger;
         _analysisService = analysisService;
-        _rebootScheduleService = rebootScheduleService ?? new RebootScheduleService(new ElevatedHelperClient());
+        _rebootScheduleService = rebootScheduleService;
+        _filePlatformOperations = filePlatformOperations;
     }
 
-    public FileOperationResult TryScheduleDeleteOnReboot(string filePath)
+    public FileOperationResult ScheduleDeleteOnReboot(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             throw new ArgumentException("File path cannot be empty.", nameof(filePath));
@@ -64,43 +67,28 @@ public sealed class FileActionService
         };
     }
 
-    public FileOperationResult TryDelete(string filePath, bool sendToRecycleBin, bool scheduleOnRebootIfBlocked)
+    public FileOperationResult Delete(DeleteFileRequest request)
     {
-        if (string.IsNullOrWhiteSpace(filePath))
-            throw new ArgumentException("File path cannot be empty.", nameof(filePath));
+        if (request is null)
+            throw new ArgumentNullException(nameof(request));
 
-        var normalizedPath = Path.GetFullPath(filePath);
+        var normalizedPath = Path.GetFullPath(request.FilePath);
 
         if (!File.Exists(normalizedPath))
         {
             _actionLogger.Log(ActionType.FileDelete, normalizedPath, ActionResult.Failed, details: "File not found.");
-            return new FileOperationResult
-            {
-                Success = false,
-                FilePath = normalizedPath,
-                Status = FileOperationStatus.NotFound,
-                ErrorMessage = "File not found."
-            };
+            return Failure(normalizedPath, FileOperationStatus.NotFound, "File not found.");
         }
 
         try
         {
-            if (sendToRecycleBin)
-            {
-                FileOperations.SendToRecycleBin(normalizedPath);
-            }
+            if (request.DeleteMode == DeleteMode.RecycleBin)
+                _filePlatformOperations.SendToRecycleBin(normalizedPath);
             else
-            {
                 File.Delete(normalizedPath);
-            }
 
             _actionLogger.Log(ActionType.FileDelete, normalizedPath, ActionResult.Success);
-            return new FileOperationResult
-            {
-                Success = true,
-                FilePath = normalizedPath,
-                Status = FileOperationStatus.Success
-            };
+            return Success(normalizedPath);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -114,7 +102,7 @@ public sealed class FileActionService
                 normalizedPath,
                 analysisPath: normalizedPath,
                 ex,
-                scheduleOnRebootIfBlocked,
+                request.OnBlocked,
                 scheduleAction: () => _rebootScheduleService.TryScheduleDeleteOnReboot(normalizedPath, helperTimeout: TimeSpan.FromSeconds(8)));
         }
         catch (Win32Exception ex)
@@ -124,20 +112,18 @@ public sealed class FileActionService
                 normalizedPath,
                 analysisPath: normalizedPath,
                 ex,
-                scheduleOnRebootIfBlocked,
+                request.OnBlocked,
                 scheduleAction: () => _rebootScheduleService.TryScheduleDeleteOnReboot(normalizedPath, helperTimeout: TimeSpan.FromSeconds(8)));
         }
     }
 
-    public FileOperationResult TryMove(string sourcePath, string destinationPath, bool scheduleOnRebootIfBlocked)
+    public FileOperationResult Move(MoveFileRequest request)
     {
-        if (string.IsNullOrWhiteSpace(sourcePath))
-            throw new ArgumentException("Source path cannot be empty.", nameof(sourcePath));
-        if (string.IsNullOrWhiteSpace(destinationPath))
-            throw new ArgumentException("Destination path cannot be empty.", nameof(destinationPath));
+        if (request is null)
+            throw new ArgumentNullException(nameof(request));
 
-        var normalizedSource = Path.GetFullPath(sourcePath);
-        var normalizedDest = Path.GetFullPath(destinationPath);
+        var normalizedSource = Path.GetFullPath(request.SourcePath);
+        var normalizedDest = Path.GetFullPath(request.DestinationPath);
 
         if (!File.Exists(normalizedSource))
         {
@@ -147,16 +133,15 @@ public sealed class FileActionService
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(normalizedDest)!);
+            var destinationDirectory = Path.GetDirectoryName(normalizedDest);
+            if (string.IsNullOrWhiteSpace(destinationDirectory))
+                throw new ArgumentException("Destination directory is invalid.", nameof(request));
+
+            Directory.CreateDirectory(destinationDirectory);
             File.Move(normalizedSource, normalizedDest, overwrite: true);
 
             _actionLogger.Log(ActionType.FileRename, $"{normalizedSource} -> {normalizedDest}", ActionResult.Success);
-            return new FileOperationResult
-            {
-                Success = true,
-                FilePath = normalizedSource,
-                Status = FileOperationStatus.Success
-            };
+            return Success(normalizedSource);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -170,7 +155,7 @@ public sealed class FileActionService
                 $"{normalizedSource} -> {normalizedDest}",
                 analysisPath: normalizedSource,
                 ex,
-                scheduleOnRebootIfBlocked,
+                request.OnBlocked,
                 scheduleAction: () => _rebootScheduleService.TryScheduleMoveOnReboot(normalizedSource, normalizedDest, helperTimeout: TimeSpan.FromSeconds(8)));
         }
         catch (Win32Exception ex)
@@ -180,20 +165,18 @@ public sealed class FileActionService
                 $"{normalizedSource} -> {normalizedDest}",
                 analysisPath: normalizedSource,
                 ex,
-                scheduleOnRebootIfBlocked,
+                request.OnBlocked,
                 scheduleAction: () => _rebootScheduleService.TryScheduleMoveOnReboot(normalizedSource, normalizedDest, helperTimeout: TimeSpan.FromSeconds(8)));
         }
     }
 
-    public FileOperationResult TryCopy(string sourcePath, string destinationPath)
+    public FileOperationResult Copy(CopyFileRequest request)
     {
-        if (string.IsNullOrWhiteSpace(sourcePath))
-            throw new ArgumentException("Source path cannot be empty.", nameof(sourcePath));
-        if (string.IsNullOrWhiteSpace(destinationPath))
-            throw new ArgumentException("Destination path cannot be empty.", nameof(destinationPath));
+        if (request is null)
+            throw new ArgumentNullException(nameof(request));
 
-        var normalizedSource = Path.GetFullPath(sourcePath);
-        var normalizedDest = Path.GetFullPath(destinationPath);
+        var normalizedSource = Path.GetFullPath(request.SourcePath);
+        var normalizedDest = Path.GetFullPath(request.DestinationPath);
 
         if (!File.Exists(normalizedSource))
         {
@@ -203,16 +186,15 @@ public sealed class FileActionService
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(normalizedDest)!);
+            var destinationDirectory = Path.GetDirectoryName(normalizedDest);
+            if (string.IsNullOrWhiteSpace(destinationDirectory))
+                throw new ArgumentException("Destination directory is invalid.", nameof(request));
+
+            Directory.CreateDirectory(destinationDirectory);
             File.Copy(normalizedSource, normalizedDest, overwrite: true);
 
             _actionLogger.Log(ActionType.FileCopy, $"{normalizedSource} -> {normalizedDest}", ActionResult.Success);
-            return new FileOperationResult
-            {
-                Success = true,
-                FilePath = normalizedSource,
-                Status = FileOperationStatus.Success
-            };
+            return Success(normalizedSource);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -232,12 +214,12 @@ public sealed class FileActionService
         string target,
         string analysisPath,
         Exception ex,
-        bool scheduleOnRebootIfBlocked,
-        Func<RebootScheduleResult>? scheduleAction = null)
+        OnBlockedBehavior onBlockedBehavior,
+        Func<RebootScheduleResult> scheduleAction)
     {
         var lockers = _analysisService.AnalyzePath(analysisPath, scanRecursively: false);
 
-        if (scheduleOnRebootIfBlocked && scheduleAction != null)
+        if (onBlockedBehavior == OnBlockedBehavior.ScheduleOnReboot)
         {
             var scheduleResult = scheduleAction();
             if (scheduleResult.Success)
@@ -275,6 +257,16 @@ public sealed class FileActionService
 
         _actionLogger.Log(type, target, ActionResult.Failed, EscalationLevel.Info, ex.Message);
         return Failure(target, FileOperationStatus.LockedByProcess, ex.Message, lockers);
+    }
+
+    private static FileOperationResult Success(string filePath)
+    {
+        return new FileOperationResult
+        {
+            Success = true,
+            FilePath = filePath,
+            Status = FileOperationStatus.Success
+        };
     }
 
     private static FileOperationResult Failure(

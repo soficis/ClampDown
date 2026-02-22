@@ -1,16 +1,18 @@
+using ClampDown.Core.Abstractions;
 using ClampDown.Core.Models;
 using ClampDown.Core.Policy;
-using ClampDown.Win32;
 
 namespace ClampDown.Core.Services;
 
 public sealed class FileLockAnalysisService
 {
     private readonly SafetyPolicy _safetyPolicy;
+    private readonly IRestartManagerGateway _restartManagerGateway;
 
-    public FileLockAnalysisService(SafetyPolicy safetyPolicy)
+    public FileLockAnalysisService(SafetyPolicy safetyPolicy, IRestartManagerGateway restartManagerGateway)
     {
         _safetyPolicy = safetyPolicy;
+        _restartManagerGateway = restartManagerGateway;
     }
 
     public IReadOnlyList<ProcessLockDetail> AnalyzePath(
@@ -23,12 +25,8 @@ public sealed class FileLockAnalysisService
 
         var normalizedPath = Path.GetFullPath(path);
         var resources = BuildResources(normalizedPath, scanRecursively, maxFilesToEnumerate);
+        var lockers = _restartManagerGateway.GetLockers(resources);
 
-        using var client = new RestartManagerClient();
-        client.StartSession();
-        client.RegisterResources(resources);
-
-        var lockers = client.GetLockers();
         return lockers
             .Select(MapToLockDetail)
             .OrderBy(d => d.IsCriticalProcess)
@@ -48,14 +46,10 @@ public sealed class FileLockAnalysisService
 
         var normalizedPath = Path.GetFullPath(path);
         var resources = BuildResources(normalizedPath, scanRecursively, maxFilesToEnumerate);
-
-        using var client = new RestartManagerClient();
-        client.StartSession();
-        client.RegisterResources(resources);
-        client.RequestShutdown(forceUnresponsive);
+        _restartManagerGateway.RequestShutdown(resources, forceUnresponsive);
     }
 
-    private IEnumerable<string> BuildResources(string normalizedPath, bool scanRecursively, int maxFilesToEnumerate)
+    private static IReadOnlyList<string> BuildResources(string normalizedPath, bool scanRecursively, int maxFilesToEnumerate)
     {
         if (File.Exists(normalizedPath))
             return new[] { normalizedPath };
@@ -76,29 +70,40 @@ public sealed class FileLockAnalysisService
         return new[] { normalizedPath };
     }
 
-    private ProcessLockDetail MapToLockDetail(ProcessLockInfo info)
+    private ProcessLockDetail MapToLockDetail(LockingProcessSnapshot info)
     {
-        var isCritical = info.ApplicationType == RmAppType.Critical || _safetyPolicy.IsCriticalProcess(info.ProcessName);
+        var isCritical = info.ProcessType == LockingProcessType.Critical || _safetyPolicy.IsCriticalProcess(info.ProcessName);
 
         return new ProcessLockDetail
         {
             ProcessId = info.ProcessId,
             ProcessName = info.ProcessName,
-            Description = info.Description,
-            LockType = MapLockType(info.ApplicationType),
+            Description = MapDescription(info),
+            LockType = MapLockType(info.ProcessType),
             CanTerminate = !isCritical,
             IsCriticalProcess = isCritical
         };
     }
 
-    private static ProcessLockType MapLockType(RmAppType type)
+    private static string MapDescription(LockingProcessSnapshot info)
+    {
+        return info.ProcessType switch
+        {
+            LockingProcessType.Service => string.IsNullOrWhiteSpace(info.ServiceName) ? "Service" : $"Service: {info.ServiceName}",
+            LockingProcessType.Explorer => "Windows Explorer",
+            LockingProcessType.Critical => "Critical System Process",
+            _ => info.ProcessName
+        };
+    }
+
+    private static ProcessLockType MapLockType(LockingProcessType type)
     {
         return type switch
         {
-            RmAppType.Service => ProcessLockType.Service,
-            RmAppType.Explorer => ProcessLockType.Explorer,
-            RmAppType.Critical => ProcessLockType.SystemCritical,
-            RmAppType.MainWindow or RmAppType.OtherWindow or RmAppType.Console => ProcessLockType.Application,
+            LockingProcessType.Service => ProcessLockType.Service,
+            LockingProcessType.Explorer => ProcessLockType.Explorer,
+            LockingProcessType.Critical => ProcessLockType.SystemCritical,
+            LockingProcessType.Application => ProcessLockType.Application,
             _ => ProcessLockType.Unknown
         };
     }

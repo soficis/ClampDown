@@ -53,15 +53,6 @@ internal static class RestartManagerNativeMethods
         RmWriteStatusCallback? fnStatus);
 
     /// <summary>
-    /// Restarts applications that were shut down by RmShutdown.
-    /// </summary>
-    [DllImport(RestartManagerDll)]
-    public static extern int RmRestart(
-        uint dwSessionHandle,
-        int dwRestartFlags,
-        RmWriteStatusCallback? fnStatus);
-
-    /// <summary>
     /// Ends the Restart Manager session.
     /// </summary>
     [DllImport(RestartManagerDll)]
@@ -94,17 +85,17 @@ public struct RmUniqueProcess
 public struct RmProcessInfo
 {
     public RmUniqueProcess Process;
-    
+
     [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
     public string ApplicationName;
-    
+
     [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
     public string ServiceShortName;
-    
+
     public RmAppType ApplicationType;
     public uint AppStatus;
     public uint TsSessionId;
-    
+
     [MarshalAs(UnmanagedType.Bool)]
     public bool Restartable;
 }
@@ -131,21 +122,7 @@ public enum RmShutdownType : uint
 {
     /// <summary>Force unresponsive applications to shut down.</summary>
     ForceShutdown = 0x1,
-    
+
     /// <summary>Shut down only applications that are registered for restart.</summary>
     ShutdownOnlyRegistered = 0x10
-}
-
-/// <summary>
-/// Reasons a reboot might be required.
-/// </summary>
-[Flags]
-public enum RmRebootReason : uint
-{
-    None = 0,
-    PermissionDenied = 1,
-    SessionMismatch = 2,
-    CriticalProcess = 4,
-    CriticalService = 8,
-    DetectedSelf = 16
 }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.ComponentModel;
 using ClampDown.Core.Policy;
 
 namespace ClampDown.Core.Services;
@@ -27,7 +28,15 @@ public sealed class ProcessDiscoveryService
             {
                 executablePath = process.MainModule?.FileName;
             }
-            catch
+            catch (Win32Exception)
+            {
+                continue;
+            }
+            catch (InvalidOperationException)
+            {
+                continue;
+            }
+            catch (NotSupportedException)
             {
                 continue;
             }
@@ -76,4 +85,3 @@ public sealed record RunningProcessInfo
     public required bool RequiresWarning { get; init; }
     public string? WarningMessage { get; init; }
 }
-

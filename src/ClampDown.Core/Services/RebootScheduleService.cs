@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Text;
+using ClampDown.Core.Abstractions;
 using ClampDown.Core.HelperIpc;
-using ClampDown.Win32;
 
 namespace ClampDown.Core.Services;
 
@@ -11,11 +11,18 @@ public sealed class RebootScheduleService
     private const int ErrorPrivilegeNotHeld = 1314;
     private const int ErrorElevationRequired = 740;
 
-    private readonly ElevatedHelperClient _helperClient;
+    private readonly IFilePlatformOperations _filePlatformOperations;
+    private readonly IHelperCommandClient _helperClient;
+    private readonly IElevatedHelperLauncher _helperLauncher;
 
-    public RebootScheduleService(ElevatedHelperClient helperClient)
+    public RebootScheduleService(
+        IFilePlatformOperations filePlatformOperations,
+        IHelperCommandClient helperClient,
+        IElevatedHelperLauncher helperLauncher)
     {
+        _filePlatformOperations = filePlatformOperations;
         _helperClient = helperClient;
+        _helperLauncher = helperLauncher;
     }
 
     public RebootScheduleResult TryScheduleDeleteOnReboot(string filePath, TimeSpan helperTimeout)
@@ -27,7 +34,7 @@ public sealed class RebootScheduleService
 
         try
         {
-            FileOperations.ScheduleDeleteOnReboot(normalized);
+            _filePlatformOperations.ScheduleDeleteOnReboot(normalized);
             return RebootScheduleResult.Succeeded();
         }
         catch (Win32Exception ex) when (RequiresElevation(ex.NativeErrorCode))
@@ -64,7 +71,7 @@ public sealed class RebootScheduleService
 
         try
         {
-            FileOperations.ScheduleMoveOnReboot(normalizedSource, normalizedDest);
+            _filePlatformOperations.ScheduleMoveOnReboot(normalizedSource, normalizedDest);
             return RebootScheduleResult.Succeeded();
         }
         catch (Win32Exception ex) when (RequiresElevation(ex.NativeErrorCode))
@@ -94,7 +101,7 @@ public sealed class RebootScheduleService
     {
         try
         {
-            var response = _helperClient.SendAsync(request, timeout: TimeSpan.FromMilliseconds(300)).GetAwaiter().GetResult();
+            var response = _helperClient.SendAsync(request, helperTimeout).GetAwaiter().GetResult();
             if (response.Success)
                 return RebootScheduleResult.Succeeded(elevationUsed: true, win32ErrorCode: response.Win32ErrorCode);
 
@@ -105,16 +112,8 @@ public sealed class RebootScheduleService
         }
         catch (Exception firstSendEx)
         {
-            var helperPath = HelperProcessLocator.FindHelperExecutablePath();
-            if (string.IsNullOrWhiteSpace(helperPath))
-            {
-                return RebootScheduleResult.Failed(
-                    BuildElevationRequiredMessage(fallbackError, firstSendEx),
-                    win32ErrorCode: fallbackError.NativeErrorCode);
-            }
-
-            var startError = HelperProcessLocator.TryStartElevatedHelper(helperPath, out var startErrorMessage);
-            if (!startError)
+            var started = _helperLauncher.TryStart(out var startErrorMessage);
+            if (!started)
             {
                 return RebootScheduleResult.Failed(
                     startErrorMessage ?? BuildElevationRequiredMessage(fallbackError, firstSendEx),
@@ -166,18 +165,20 @@ public sealed record RebootScheduleResult
     public bool ElevationUsed { get; init; }
     public string? ErrorMessage { get; init; }
 
-    public static RebootScheduleResult Succeeded(bool elevationUsed = false, int? win32ErrorCode = null) => new()
-    {
-        Success = true,
-        ElevationUsed = elevationUsed,
-        Win32ErrorCode = win32ErrorCode
-    };
+    public static RebootScheduleResult Succeeded(bool elevationUsed = false, int? win32ErrorCode = null) =>
+        new()
+        {
+            Success = true,
+            ElevationUsed = elevationUsed,
+            Win32ErrorCode = win32ErrorCode
+        };
 
-    public static RebootScheduleResult Failed(string message, int? win32ErrorCode = null, bool elevationUsed = false) => new()
-    {
-        Success = false,
-        ErrorMessage = message,
-        Win32ErrorCode = win32ErrorCode,
-        ElevationUsed = elevationUsed
-    };
+    public static RebootScheduleResult Failed(string message, int? win32ErrorCode = null, bool elevationUsed = false) =>
+        new()
+        {
+            Success = false,
+            ErrorMessage = message,
+            Win32ErrorCode = win32ErrorCode,
+            ElevationUsed = elevationUsed
+        };
 }

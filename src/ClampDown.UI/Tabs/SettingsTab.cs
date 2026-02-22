@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows.Forms;
 using ClampDown.Core.Models;
-using ClampDown.Core.Services;
 using Microsoft.Win32;
 
 namespace ClampDown.UI.Tabs;
@@ -61,10 +60,10 @@ public sealed class SettingsTab : UserControl
 
         var elevationButtons = new FlowLayoutPanel { AutoSize = true };
         var startHelper = new Button { Text = "Start Elevated Helper" };
-        startHelper.Click += async (_, _) => await StartHelperAsync();
+        startHelper.Click += (_, _) => StartHelper();
 
         var restartAdmin = new Button { Text = "Restart as Administrator" };
-        restartAdmin.Click += async (_, _) => await RestartAsAdminAsync();
+        restartAdmin.Click += (_, _) => RestartAsAdmin();
 
         elevationButtons.Controls.Add(startHelper);
         elevationButtons.Controls.Add(restartAdmin);
@@ -88,40 +87,19 @@ public sealed class SettingsTab : UserControl
         _services.ThemeManager.ThemeChanged += (_, _) => _services.ThemeManager.ApplyToControl(this);
     }
 
-    private async Task StartHelperAsync()
+    private void StartHelper()
     {
-        var helperExePath = HelperProcessLocator.FindHelperExecutablePath();
-        if (string.IsNullOrWhiteSpace(helperExePath) || !File.Exists(helperExePath))
+        if (!_services.ElevatedHelperLauncher.TryStart(out var errorMessage))
         {
-            MessageBox.Show(this, "ClampDown.Helper.exe was not found.", "Helper not found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, errorMessage ?? "Failed to start elevated helper.", "Helper not found", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = helperExePath,
-                UseShellExecute = true,
-                Verb = "runas"
-            });
-
-            _services.ActionLogger.Log(ActionType.ProcessTerminate, "ClampDown.Helper", ActionResult.Success, elevationUsed: true, details: "Requested elevated helper start.");
-            MessageBox.Show(this, "Elevated helper start requested.", "Helper", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
-        {
-            MessageBox.Show(this, "UAC prompt was cancelled.", "Cancelled", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, ex.Message, "Failed to start helper", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-
-        await Task.CompletedTask;
+        _services.ActionLogger.Log(ActionType.HelperStart, "ClampDown.Helper", ActionResult.Success, elevationUsed: true, details: "Requested elevated helper start.");
+        MessageBox.Show(this, "Elevated helper start requested.", "Helper", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
-    private async Task RestartAsAdminAsync()
+    private void RestartAsAdmin()
     {
         var ok = MessageBox.Show(this, "ClampDown will restart with elevated privileges.", "Restart as administrator", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning);
         if (ok != DialogResult.OK)
@@ -153,8 +131,6 @@ public sealed class SettingsTab : UserControl
         {
             MessageBox.Show(this, ex.Message, "Restart failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-
-        await Task.CompletedTask;
     }
 
     private void ToggleAutoStart()

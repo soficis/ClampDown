@@ -34,8 +34,8 @@ public class ProcessTerminator
             process.CloseMainWindow();
             bool exited = process.WaitForExit((int)timeout.TotalMilliseconds);
 
-            return exited 
-                ? TerminationResult.Success() 
+            return exited
+                ? TerminationResult.Success()
                 : TerminationResult.Failed("Process did not respond to close request.");
         }
         catch (ArgumentException)
@@ -93,12 +93,12 @@ public record TerminationResult
     public bool WasBlocked { get; init; }
     public string? ErrorMessage { get; init; }
 
-    public static TerminationResult Success() => 
+    public static TerminationResult Success() =>
         new() { IsSuccess = true };
-    
-    public static TerminationResult Failed(string message) => 
+
+    public static TerminationResult Failed(string message) =>
         new() { ErrorMessage = message };
-    
-    public static TerminationResult Blocked(string reason) => 
+
+    public static TerminationResult Blocked(string reason) =>
         new() { WasBlocked = true, ErrorMessage = reason };
 }

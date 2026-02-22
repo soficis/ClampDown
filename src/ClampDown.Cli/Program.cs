@@ -1,16 +1,20 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ClampDown.Core.HelperIpc;
 using ClampDown.Core.Models;
 using ClampDown.Core.Policy;
 using ClampDown.Core.Services;
 using ClampDown.Win32;
+using ClampDown.Win32.Adapters;
+using ClampDown.Cli;
 
 var exitCode = Run(args);
 Environment.Exit(exitCode);
 
 static int Run(string[] args)
 {
-    if (args.Length == 0 || IsHelp(args[0]))
+    var parsed = CliTopLevelParser.Parse(args);
+    if (parsed.Command == TopLevelCommand.Help)
     {
         PrintHelp();
         return 0;
@@ -18,23 +22,28 @@ static int Run(string[] args)
 
     var safetyPolicy = new SafetyPolicy();
     var actionLogger = new ActionLogger();
-    var analysisService = new FileLockAnalysisService(safetyPolicy);
-    var fileActionService = new FileActionService(actionLogger, analysisService);
+    var helperSession = HelperSessionFactory.CreateForCurrentProcess();
+    var filePlatformOperations = new Win32FilePlatformOperations();
+    var restartManagerGateway = new RestartManagerGateway();
+    var helperClient = new ElevatedHelperClient(helperSession);
+    var helperLauncher = new ElevatedHelperLauncher(helperSession);
+    var rebootScheduleService = new RebootScheduleService(filePlatformOperations, helperClient, helperLauncher);
+    var analysisService = new FileLockAnalysisService(safetyPolicy, restartManagerGateway);
+    var fileActionService = new FileActionService(actionLogger, analysisService, rebootScheduleService, filePlatformOperations);
 
-    var command = args[0].ToLowerInvariant();
-    var remaining = args.Skip(1).ToArray();
+    var remaining = parsed.RemainingArgs;
 
     try
     {
-        return command switch
+        return parsed.Command switch
         {
-            "analyze" => Analyze(analysisService, remaining),
-            "unlock-delete" => UnlockDelete(fileActionService, remaining),
-            "unlock-move" => UnlockMove(fileActionService, remaining),
-            "unlock-copy" => UnlockCopy(fileActionService, remaining),
-            "drive-list" => DriveList(remaining),
-            "eject" => Eject(remaining),
-            _ => Unknown(command)
+            TopLevelCommand.Analyze => Analyze(analysisService, remaining),
+            TopLevelCommand.UnlockDelete => UnlockDelete(fileActionService, remaining),
+            TopLevelCommand.UnlockMove => UnlockMove(fileActionService, remaining),
+            TopLevelCommand.UnlockCopy => UnlockCopy(fileActionService, remaining),
+            TopLevelCommand.DriveList => DriveList(remaining),
+            TopLevelCommand.Eject => Eject(remaining),
+            _ => Unknown(parsed.RawCommand)
         };
     }
     catch (Exception ex)
@@ -89,7 +98,13 @@ static int UnlockDelete(FileActionService fileActionService, string[] args)
     var recycle = args.Contains("--recycle-bin", StringComparer.OrdinalIgnoreCase) || !args.Contains("--permanent", StringComparer.OrdinalIgnoreCase);
     var schedule = args.Contains("--schedule", StringComparer.OrdinalIgnoreCase);
 
-    var result = fileActionService.TryDelete(filePath, recycle, schedule);
+    var result = fileActionService.Delete(new DeleteFileRequest
+    {
+        FilePath = filePath,
+        DeleteMode = recycle ? DeleteMode.RecycleBin : DeleteMode.Permanent,
+        OnBlocked = schedule ? OnBlockedBehavior.ScheduleOnReboot : OnBlockedBehavior.Fail
+    });
+
     return PrintFileResult(result, json: args.Contains("--json", StringComparer.OrdinalIgnoreCase));
 }
 
@@ -105,7 +120,13 @@ static int UnlockMove(FileActionService fileActionService, string[] args)
     var dest = args[1];
     var schedule = args.Contains("--schedule", StringComparer.OrdinalIgnoreCase);
 
-    var result = fileActionService.TryMove(source, dest, schedule);
+    var result = fileActionService.Move(new MoveFileRequest
+    {
+        SourcePath = source,
+        DestinationPath = dest,
+        OnBlocked = schedule ? OnBlockedBehavior.ScheduleOnReboot : OnBlockedBehavior.Fail
+    });
+
     return PrintFileResult(result, json: args.Contains("--json", StringComparer.OrdinalIgnoreCase));
 }
 
@@ -120,7 +141,12 @@ static int UnlockCopy(FileActionService fileActionService, string[] args)
     var source = args[0];
     var dest = args[1];
 
-    var result = fileActionService.TryCopy(source, dest);
+    var result = fileActionService.Copy(new CopyFileRequest
+    {
+        SourcePath = source,
+        DestinationPath = dest
+    });
+
     return PrintFileResult(result, json: args.Contains("--json", StringComparer.OrdinalIgnoreCase));
 }
 

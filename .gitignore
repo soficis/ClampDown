@@ -1,74 +1,67 @@
-# Binaries and executables
+# Build output
+bin/
+obj/
+dist/
+artifacts/
+release-assets/
+TestResults/
+
+# Binaries
 *.exe
 *.dll
 *.pdb
 *.exe.config
 *.dll.config
+*.so
+*.dylib
 
-# Build outputs
-bin/
-obj/
-dist/
+# Packages
+packages/
+*.nupkg
+*.snupkg
+.nuget/
 
-# Visual Studio
+# Test/coverage artifacts
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+
+# IDE/editor
 .vs/
-*.user
-*.suo
-*.tmp
-*.temp
-
-# Rider IDE
 .idea/
+.vscode/
+*.code-workspace
+*.suo
+*.user
+*.rsuser
 *.iml
 *.ipr
 *.iws
 
-# VS Code
-.vscode/
-*.code-workspace
-
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-Icon
-._*
-
-# Linux
+# Temp files
+*.tmp
+*.temp
+*.swp
+*.swo
 *~
 
 # Logs
 *.log
 logs/
 
-# Temporary files
-*.tmp
-*.temp
-*.swp
-*.swo
+# OS junk
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
 
-# NuGet
-packages/
-*.nupkg
-*.snupkg
-.nuget/
-
-# .NET Core
-project.lock.json
-project.fragment.lock.json
-artifacts/
-
-# User-specific files
-*.user
-*.rsuser
-
-# Documentation
+# Local docs and scratch plans
 docs/
 
-# Room modes
+# Local tooling metadata
 .roomodes

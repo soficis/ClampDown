@@ -1,24 +1,30 @@
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
+using ClampDown.Core.Abstractions;
 using ClampDown.Core.HelperIpc;
 
 namespace ClampDown.Core.Services;
 
-public sealed class ElevatedHelperClient
+public sealed class ElevatedHelperClient : IHelperCommandClient
 {
-    private readonly string _pipeName;
+    private readonly HelperSession _session;
 
-    public ElevatedHelperClient(string pipeName = "ClampDown.Helper")
+    public ElevatedHelperClient(HelperSession session)
     {
-        _pipeName = pipeName;
+        _session = session;
     }
 
     public async Task<HelperResponse> SendAsync(HelperRequest request, TimeSpan timeout, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(_session.PipeName))
+            throw new InvalidOperationException("Helper pipe name is not configured.");
+        if (string.IsNullOrWhiteSpace(_session.AuthorizationToken))
+            throw new InvalidOperationException("Helper authorization token is not configured.");
+
         using var client = new NamedPipeClientStream(
             serverName: ".",
-            pipeName: _pipeName,
+            pipeName: _session.PipeName,
             direction: PipeDirection.InOut,
             options: PipeOptions.Asynchronous);
 
@@ -30,7 +36,8 @@ public sealed class ElevatedHelperClient
         using var reader = new StreamReader(client, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: true);
         using var writer = new StreamWriter(client, Encoding.UTF8, bufferSize: 4096, leaveOpen: true) { AutoFlush = true };
 
-        var json = JsonSerializer.Serialize(request);
+        var authorizedRequest = request with { AuthorizationToken = _session.AuthorizationToken };
+        var json = JsonSerializer.Serialize(authorizedRequest);
         await writer.WriteLineAsync(json);
 
         var responseJson = await reader.ReadLineAsync(timeoutCts.Token);
@@ -38,7 +45,7 @@ public sealed class ElevatedHelperClient
         {
             return new HelperResponse
             {
-                CorrelationId = request.CorrelationId,
+                CorrelationId = authorizedRequest.CorrelationId,
                 Success = false,
                 ErrorMessage = "No response from helper."
             };
@@ -47,10 +54,9 @@ public sealed class ElevatedHelperClient
         var response = JsonSerializer.Deserialize<HelperResponse>(responseJson);
         return response ?? new HelperResponse
         {
-            CorrelationId = request.CorrelationId,
+            CorrelationId = authorizedRequest.CorrelationId,
             Success = false,
             ErrorMessage = "Invalid response from helper."
         };
     }
 }
-

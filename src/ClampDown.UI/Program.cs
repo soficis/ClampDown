@@ -9,7 +9,7 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
         var services = new UiServices();
-        Application.Run(new MainForm(services));
+        using var mainForm = new MainForm(services);
+        Application.Run(mainForm);
     }
 }
-

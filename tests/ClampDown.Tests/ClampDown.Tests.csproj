@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\ClampDown.Cli\ClampDown.Cli.csproj" />
     <ProjectReference Include="..\..\src\ClampDown.Core\ClampDown.Core.csproj" />
     <ProjectReference Include="..\..\src\ClampDown.Win32\ClampDown.Win32.csproj" />
   </ItemGroup>

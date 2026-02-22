@@ -1,0 +1,72 @@
+name: Nightly Golden Eval
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  golden-eval:
+    runs-on: ubuntu-24.04
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore ClampDown.sln
+
+      - name: Build
+        run: dotnet build ClampDown.sln -c Debug --no-restore
+
+      - name: Run tests
+        run: dotnet test ClampDown.sln -c Debug --no-build --logger "trx;LogFileName=nightly.trx"
+
+      - name: Quality gate (format check)
+        run: dotnet format ClampDown.sln --verify-no-changes
+
+      - name: Publish win-x64 smoke package
+        run: |
+          dotnet publish src/ClampDown.UI/ClampDown.UI.csproj -c Release -r win-x64 --self-contained true -o artifacts/nightly_publish/ui
+          dotnet publish src/ClampDown.Cli/ClampDown.Cli.csproj -c Release -r win-x64 --self-contained true -o artifacts/nightly_publish/cli
+          dotnet publish src/ClampDown.Helper/ClampDown.Helper.csproj -c Release -r win-x64 --self-contained true -o artifacts/nightly_publish/helper
+          dotnet publish src/ClampDown.Tray/ClampDown.Tray.csproj -c Release -r win-x64 --self-contained true -o artifacts/nightly_publish/tray
+
+      - name: Update Eval Trend
+        if: success() || failure()
+        run: |
+          mkdir -p artifacts/eval
+          python3 - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+          summary = {
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "repository": "${{ github.repository }}",
+            "ref": "${{ github.ref }}",
+            "sha": "${{ github.sha }}",
+            "run_id": "${{ github.run_id }}",
+            "workflow": "${{ github.workflow }}",
+            "status": "completed"
+          }
+          out = Path("artifacts/eval/nightly_summary.json")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+          PY
+
+      - name: Upload Eval Artifacts
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-golden-eval
+          path: |
+            artifacts/eval/nightly_summary.json
+            artifacts/nightly_publish
+            **/nightly.trx

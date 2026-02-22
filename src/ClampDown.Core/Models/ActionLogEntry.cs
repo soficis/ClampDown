@@ -26,6 +26,7 @@ public enum ActionType
     FileCopy,
     ProcessClose,
     ProcessTerminate,
+    HelperStart,
     DriveAnalyze,
     DriveEject,
     VolumeDismount,
@@ -39,16 +40,16 @@ public enum EscalationLevel
 {
     /// <summary>Informational - analysis only.</summary>
     Info = 0,
-    
+
     /// <summary>Graceful - Restart Manager shutdown.</summary>
     Graceful = 1,
-    
+
     /// <summary>Forceful - Process termination.</summary>
     Force = 2,
-    
+
     /// <summary>Scheduled - Deferred to reboot.</summary>
     Scheduled = 3,
-    
+
     /// <summary>Critical - Volume dismount (risky).</summary>
     Critical = 4
 }

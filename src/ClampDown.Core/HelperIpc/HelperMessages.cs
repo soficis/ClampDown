@@ -14,7 +14,7 @@ public sealed record HelperRequest
     public Guid CorrelationId { get; init; } = Guid.NewGuid();
     public HelperCommand Command { get; init; }
     public bool UserConfirmed { get; init; }
-    public string? ConfirmationToken { get; init; }
+    public string AuthorizationToken { get; init; } = string.Empty;
 
     public int? ProcessId { get; init; }
     public bool? KillProcessTree { get; init; }

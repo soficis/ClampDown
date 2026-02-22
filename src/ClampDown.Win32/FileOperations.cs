@@ -21,28 +21,20 @@ public static class FileOperations
     private enum MoveFileFlags : uint
     {
         ReplaceExisting = 0x1,
-        CopyAllowed = 0x2,
-        DelayUntilReboot = 0x4,
-        WriteThrough = 0x8,
-        CreateHardlink = 0x10,
-        FailIfNotTrackable = 0x20
+        DelayUntilReboot = 0x4
     }
 
     private enum FileOperationType : uint
     {
-        FO_MOVE = 0x1,
-        FO_COPY = 0x2,
-        FO_DELETE = 0x3,
-        FO_RENAME = 0x4
+        Delete = 0x3
     }
 
     [Flags]
     private enum FileOperationFlags : ushort
     {
-        FOF_ALLOWUNDO = 0x40,
-        FOF_NOCONFIRMATION = 0x10,
-        FOF_SILENT = 0x4,
-        FOF_NOERRORUI = 0x400
+        AllowUndo = 0x40,
+        NoConfirmation = 0x10,
+        NoErrorUi = 0x400
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -63,18 +55,15 @@ public static class FileOperations
     /// Schedules a file for deletion when the system restarts.
     /// Useful when a file cannot be deleted due to active locks.
     /// </summary>
-    /// <param name="filePath">Full path to the file to delete.</param>
-    /// <exception cref="Win32Exception">Thrown if the operation fails.</exception>
     public static void ScheduleDeleteOnReboot(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             throw new ArgumentException("File path cannot be empty.", nameof(filePath));
 
-        bool success = MoveFileExW(filePath, null, MoveFileFlags.DelayUntilReboot);
-        
+        var success = MoveFileExW(filePath, null, MoveFileFlags.DelayUntilReboot);
         if (!success)
         {
-            int error = Marshal.GetLastWin32Error();
+            var error = Marshal.GetLastWin32Error();
             throw new Win32Exception(error, $"Failed to schedule delete for: {filePath}");
         }
     }
@@ -89,14 +78,14 @@ public static class FileOperations
         if (string.IsNullOrWhiteSpace(destinationPath))
             throw new ArgumentException("Destination path cannot be empty.", nameof(destinationPath));
 
-        bool success = MoveFileExW(
+        var success = MoveFileExW(
             sourcePath,
             destinationPath,
             MoveFileFlags.DelayUntilReboot | MoveFileFlags.ReplaceExisting);
 
         if (!success)
         {
-            int error = Marshal.GetLastWin32Error();
+            var error = Marshal.GetLastWin32Error();
             throw new Win32Exception(error, $"Failed to schedule move for reboot: {sourcePath} -> {destinationPath}");
         }
     }
@@ -111,59 +100,21 @@ public static class FileOperations
 
         var op = new ShFileOpStruct
         {
-            wFunc = FileOperationType.FO_DELETE,
+            wFunc = FileOperationType.Delete,
             pFrom = filePath + "\0\0",
             pTo = null,
-            fFlags = FileOperationFlags.FOF_ALLOWUNDO | FileOperationFlags.FOF_NOCONFIRMATION | FileOperationFlags.FOF_NOERRORUI,
+            fFlags = FileOperationFlags.AllowUndo | FileOperationFlags.NoConfirmation | FileOperationFlags.NoErrorUi,
             fAnyOperationsAborted = false,
             hwnd = IntPtr.Zero,
             hNameMappings = IntPtr.Zero,
             lpszProgressTitle = null
         };
 
-        int result = SHFileOperationW(ref op);
+        var result = SHFileOperationW(ref op);
         if (result != 0)
             throw new Win32Exception(result, $"Failed to send to Recycle Bin: {filePath}");
 
         if (op.fAnyOperationsAborted)
             throw new OperationCanceledException("Recycle Bin operation was aborted.");
-    }
-
-    /// <summary>
-    /// Attempts to delete a file, returning success status without throwing.
-    /// </summary>
-    public static bool TryDelete(string filePath, out string? errorMessage)
-    {
-        errorMessage = null;
-        
-        try
-        {
-            File.Delete(filePath);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Attempts to rename/move a file, returning success status without throwing.
-    /// </summary>
-    public static bool TryMove(string sourcePath, string destinationPath, out string? errorMessage)
-    {
-        errorMessage = null;
-        
-        try
-        {
-            File.Move(sourcePath, destinationPath);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-            return false;
-        }
     }
 }

@@ -19,19 +19,19 @@ public enum FileOperationStatus
 {
     /// <summary>Operation completed successfully.</summary>
     Success,
-    
+
     /// <summary>File is locked by one or more processes.</summary>
     LockedByProcess,
-    
+
     /// <summary>Access denied - may require elevation.</summary>
     AccessDenied,
-    
+
     /// <summary>File or path not found.</summary>
     NotFound,
-    
+
     /// <summary>Scheduled for deletion at next reboot.</summary>
     ScheduledForReboot,
-    
+
     /// <summary>Unknown error occurred.</summary>
     UnknownError
 }

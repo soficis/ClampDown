@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
+using ClampDown.Core.HelperIpc;
 
 namespace ClampDown.Core.Services;
 
@@ -57,18 +59,27 @@ public static class HelperProcessLocator
             .FirstOrDefault();
     }
 
-    public static bool TryStartElevatedHelper(string helperExePath, out string? errorMessage)
+    public static bool TryStartElevatedHelper(string helperExePath, HelperSession helperSession, out string? errorMessage)
     {
         errorMessage = null;
 
         try
         {
-            Process.Start(new ProcessStartInfo
+            var startInfo = new ProcessStartInfo
             {
                 FileName = helperExePath,
                 UseShellExecute = true,
                 Verb = "runas"
-            });
+            };
+
+            startInfo.ArgumentList.Add("--pipe-name");
+            startInfo.ArgumentList.Add(helperSession.PipeName);
+            startInfo.ArgumentList.Add("--auth-token");
+            startInfo.ArgumentList.Add(helperSession.AuthorizationToken);
+            startInfo.ArgumentList.Add("--allow-client-pid");
+            startInfo.ArgumentList.Add(helperSession.AllowedClientProcessId.ToString(CultureInfo.InvariantCulture));
+
+            Process.Start(startInfo);
 
             return true;
         }
@@ -119,4 +130,3 @@ public static class HelperProcessLocator
         return (configuration, targetFramework, platform);
     }
 }
-

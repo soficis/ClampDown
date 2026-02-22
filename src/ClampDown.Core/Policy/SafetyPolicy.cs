@@ -82,7 +82,7 @@ public class SafetyPolicy
         var normalizedName = processName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
             ? processName
             : $"{processName}.exe";
-            
+
         return CriticalProcesses.Contains(normalizedName);
     }
 }
@@ -96,12 +96,12 @@ public record TerminationApproval
     public bool RequiresWarning { get; init; }
     public string? Message { get; init; }
 
-    public static TerminationApproval Allowed() => 
+    public static TerminationApproval Allowed() =>
         new() { IsAllowed = true };
-    
-    public static TerminationApproval AllowedWithWarning(string message) => 
+
+    public static TerminationApproval AllowedWithWarning(string message) =>
         new() { IsAllowed = true, RequiresWarning = true, Message = message };
-    
-    public static TerminationApproval Blocked(string reason) => 
+
+    public static TerminationApproval Blocked(string reason) =>
         new() { IsAllowed = false, Message = reason };
 }

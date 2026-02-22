@@ -166,7 +166,7 @@ public sealed class DrivesTab : UserControl
 
         try
         {
-            var lockers = _services.FileLockAnalysisService.AnalyzePath(drive.RootPath, scanRecursively: false);
+            var lockers = await Task.Run(() => _services.FileLockAnalysisService.AnalyzePath(drive.RootPath, scanRecursively: false));
             _services.ActionLogger.Log(ActionType.DriveAnalyze, drive.DriveLetter, ActionResult.Success, details: $"Found {lockers.Count} locker(s).");
 
             var sb = new StringBuilder();
@@ -192,8 +192,6 @@ public sealed class DrivesTab : UserControl
             _services.ActionLogger.Log(ActionType.DriveAnalyze, drive.DriveLetter, ActionResult.Failed, details: ex.Message);
             MessageBox.Show(this, ex.Message, "Analyze failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-
-        await Task.CompletedTask;
     }
 
     private async Task StopAppsFromSelectedDriveAsync()
@@ -205,7 +203,7 @@ public sealed class DrivesTab : UserControl
         IReadOnlyList<RunningProcessInfo> processes;
         try
         {
-            processes = _services.ProcessDiscoveryService.FindProcessesWithExecutableUnderPath(drive.RootPath);
+            processes = await Task.Run(() => _services.ProcessDiscoveryService.FindProcessesWithExecutableUnderPath(drive.RootPath));
         }
         catch (Exception ex)
         {
@@ -237,7 +235,7 @@ public sealed class DrivesTab : UserControl
 
             foreach (var p in processes)
             {
-                var result = _services.ProcessTerminator.ForceTerminate(p.ProcessId, killEntireTree: true);
+                var result = await Task.Run(() => _services.ProcessTerminator.ForceTerminate(p.ProcessId, killEntireTree: true));
                 _services.ActionLogger.Log(ActionType.ProcessTerminate, $"{p.ProcessName} ({p.ProcessId})", result.IsSuccess ? ActionResult.Success : ActionResult.Failed, EscalationLevel.Force, result.ErrorMessage ?? "");
             }
 
@@ -247,12 +245,11 @@ public sealed class DrivesTab : UserControl
 
         foreach (var p in processes)
         {
-            var result = _services.ProcessTerminator.TryGracefulClose(p.ProcessId, TimeSpan.FromSeconds(5));
+            var result = await Task.Run(() => _services.ProcessTerminator.TryGracefulClose(p.ProcessId, TimeSpan.FromSeconds(5)));
             _services.ActionLogger.Log(ActionType.ProcessClose, $"{p.ProcessName} ({p.ProcessId})", result.IsSuccess ? ActionResult.Success : ActionResult.Failed, EscalationLevel.Graceful, result.ErrorMessage ?? "");
         }
 
         MessageBox.Show(this, "Requested close for detected processes.", "Close apps", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        await Task.CompletedTask;
     }
 
     private async Task SafeEjectSelectedDriveAsync()
@@ -269,7 +266,7 @@ public sealed class DrivesTab : UserControl
 
         try
         {
-            var result = DriveOperations.RequestDeviceEject(drive.DeviceInstanceId);
+            var result = await Task.Run(() => DriveOperations.RequestDeviceEject(drive.DeviceInstanceId));
             if (result.Success)
             {
                 _services.ActionLogger.Log(ActionType.DriveEject, drive.DriveLetter, ActionResult.Success);
@@ -286,8 +283,6 @@ public sealed class DrivesTab : UserControl
             _services.ActionLogger.Log(ActionType.DriveEject, drive.DriveLetter, ActionResult.Failed, details: ex.Message);
             MessageBox.Show(this, ex.Message, "Safe eject failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-
-        await Task.CompletedTask;
     }
 
     private sealed class DriveRow
@@ -301,4 +296,3 @@ public sealed class DrivesTab : UserControl
         public string? DeviceInstanceId { get; init; }
     }
 }
-

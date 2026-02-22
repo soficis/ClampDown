@@ -113,7 +113,7 @@ public sealed class OverviewTab : UserControl
     private Panel CreateNavigationCard(string title, string subtitle, string description, Action onClick)
     {
         var theme = _services.ThemeManager.CurrentTheme;
-        
+
         var card = new Panel
         {
             Dock = DockStyle.Fill,

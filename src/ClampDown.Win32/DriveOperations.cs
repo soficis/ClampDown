@@ -10,7 +10,7 @@ namespace ClampDown.Win32;
 public static class DriveOperations
 {
     #region Configuration Manager (cfgmgr32)
-    
+
     [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode)]
     private static extern int CM_Get_Parent(
         out uint pdnDevInst,
@@ -32,12 +32,11 @@ public static class DriveOperations
         uint ulFlags);
 
     private const int CrSuccess = 0;
-    private const int CrRemoveVetoed = 0x17;
 
     #endregion
 
     #region Volume IOCTLs
-    
+
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr CreateFileW(
         string lpFileName,
@@ -68,7 +67,6 @@ public static class DriveOperations
     private const uint OpenExisting = 3;
     private const uint FsctlLockVolume = 0x00090018;
     private const uint FsctlDismountVolume = 0x00090020;
-    private const uint FsctlUnlockVolume = 0x0009001C;
 
     #endregion
 
@@ -77,31 +75,45 @@ public static class DriveOperations
     /// </summary>
     public static EjectResult RequestDeviceEject(string deviceInstanceId)
     {
-        int result = CM_Locate_DevNodeW(out uint devInst, deviceInstanceId, 0);
-        if (result != CrSuccess)
+        if (string.IsNullOrWhiteSpace(deviceInstanceId))
         {
-            return new EjectResult 
-            { 
-                Success = false, 
-                ErrorMessage = $"Device not found: {deviceInstanceId}" 
+            return new EjectResult
+            {
+                Success = false,
+                ErrorMessage = "Device instance ID cannot be empty."
             };
         }
 
-        // Get parent device (the actual removable device)
-        CM_Get_Parent(out uint parentDevInst, devInst, 0);
+        var locateResult = CM_Locate_DevNodeW(out var devInst, deviceInstanceId, 0);
+        if (locateResult != CrSuccess)
+        {
+            return new EjectResult
+            {
+                Success = false,
+                ErrorMessage = $"Device not found: {deviceInstanceId} (CM error {locateResult})"
+            };
+        }
+
+        var parentResult = CM_Get_Parent(out var parentDevInst, devInst, 0);
+        if (parentResult != CrSuccess)
+        {
+            return new EjectResult
+            {
+                Success = false,
+                ErrorMessage = $"Unable to locate parent device node. (CM error {parentResult})"
+            };
+        }
 
         var vetoName = new char[256];
-        result = CM_Request_Device_EjectW(
+        var ejectResult = CM_Request_Device_EjectW(
             parentDevInst,
-            out PnpVetoType vetoType,
+            out var vetoType,
             vetoName,
             vetoName.Length,
             0);
 
-        if (result == CrSuccess)
-        {
+        if (ejectResult == CrSuccess)
             return new EjectResult { Success = true };
-        }
 
         var vetoString = new string(vetoName).TrimEnd('\0');
         return new EjectResult
@@ -114,14 +126,22 @@ public static class DriveOperations
     }
 
     /// <summary>
-    /// Attempts to lock a volume (required before dismount).
+    /// Forces volume dismount. WARNING: Can have unpredictable results.
+    /// Only use as absolute last resort with explicit user confirmation.
     /// </summary>
-    public static bool TryLockVolume(string driveLetter, out string? errorMessage)
+    public static bool ForceDismountVolume(string driveLetter, out string? errorMessage)
     {
         errorMessage = null;
-        string volumePath = $"\\\\.\\{driveLetter.TrimEnd(':')}:";
 
-        IntPtr handle = CreateFileW(
+        if (!TryNormalizeDriveLetter(driveLetter, out var normalizedDrive))
+        {
+            errorMessage = $"Invalid drive letter: {driveLetter}";
+            return false;
+        }
+
+        var volumePath = $"\\\\.\\{normalizedDrive}";
+
+        var handle = CreateFileW(
             volumePath,
             GenericRead | GenericWrite,
             FileShareReadWrite,
@@ -132,23 +152,30 @@ public static class DriveOperations
 
         if (handle == new IntPtr(-1))
         {
-            errorMessage = $"Failed to open volume: {Marshal.GetLastWin32Error()}";
+            var openError = Marshal.GetLastWin32Error();
+            errorMessage = $"Failed to open volume: {new Win32Exception(openError).Message} ({openError})";
             return false;
         }
 
         try
         {
-            bool result = DeviceIoControl(
+            // Try to lock first (recommended). The lock call may fail if handles are open.
+            DeviceIoControl(handle, FsctlLockVolume, IntPtr.Zero, 0, IntPtr.Zero, 0, out _, IntPtr.Zero);
+
+            var dismountResult = DeviceIoControl(
                 handle,
-                FsctlLockVolume,
-                IntPtr.Zero, 0,
-                IntPtr.Zero, 0,
+                FsctlDismountVolume,
+                IntPtr.Zero,
+                0,
+                IntPtr.Zero,
+                0,
                 out _,
                 IntPtr.Zero);
 
-            if (!result)
+            if (!dismountResult)
             {
-                errorMessage = $"Failed to lock volume: {Marshal.GetLastWin32Error()}";
+                var dismountError = Marshal.GetLastWin32Error();
+                errorMessage = $"Failed to dismount volume: {new Win32Exception(dismountError).Message} ({dismountError})";
                 return false;
             }
 
@@ -160,56 +187,26 @@ public static class DriveOperations
         }
     }
 
-    /// <summary>
-    /// Forces volume dismount. WARNING: Can have unpredictable results.
-    /// Only use as absolute last resort with explicit user confirmation.
-    /// </summary>
-    public static bool ForceDismountVolume(string driveLetter, out string? errorMessage)
+    private static bool TryNormalizeDriveLetter(string input, out string normalizedDriveLetterWithColon)
     {
-        errorMessage = null;
-        string volumePath = $"\\\\.\\{driveLetter.TrimEnd(':')}:";
-
-        IntPtr handle = CreateFileW(
-            volumePath,
-            GenericRead | GenericWrite,
-            FileShareReadWrite,
-            IntPtr.Zero,
-            OpenExisting,
-            0,
-            IntPtr.Zero);
-
-        if (handle == new IntPtr(-1))
-        {
-            errorMessage = $"Failed to open volume: {Marshal.GetLastWin32Error()}";
+        normalizedDriveLetterWithColon = string.Empty;
+        if (string.IsNullOrWhiteSpace(input))
             return false;
-        }
 
-        try
+        var trimmed = input.Trim();
+        if (trimmed.EndsWith("\\", StringComparison.Ordinal))
+            trimmed = trimmed.TrimEnd('\\');
+
+        if (trimmed.Length == 1 && char.IsLetter(trimmed[0]))
+            trimmed = $"{char.ToUpperInvariant(trimmed[0])}:";
+
+        if (trimmed.Length == 2 && char.IsLetter(trimmed[0]) && trimmed[1] == ':')
         {
-            // Try to lock first (recommended)
-            DeviceIoControl(handle, FsctlLockVolume, IntPtr.Zero, 0, IntPtr.Zero, 0, out _, IntPtr.Zero);
-
-            // Dismount
-            bool result = DeviceIoControl(
-                handle,
-                FsctlDismountVolume,
-                IntPtr.Zero, 0,
-                IntPtr.Zero, 0,
-                out _,
-                IntPtr.Zero);
-
-            if (!result)
-            {
-                errorMessage = $"Failed to dismount volume: {Marshal.GetLastWin32Error()}";
-                return false;
-            }
-
+            normalizedDriveLetterWithColon = $"{char.ToUpperInvariant(trimmed[0])}:";
             return true;
         }
-        finally
-        {
-            CloseHandle(handle);
-        }
+
+        return false;
     }
 }
 

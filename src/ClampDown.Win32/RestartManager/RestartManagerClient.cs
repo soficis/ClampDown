@@ -18,14 +18,14 @@ public sealed class RestartManagerClient : IDisposable
     public void StartSession()
     {
         ThrowIfDisposed();
-        
+
         if (_sessionStarted)
             throw new InvalidOperationException("Session already started.");
 
         string sessionKey = Guid.NewGuid().ToString();
         int result = RestartManagerNativeMethods.RmStartSession(
-            out _sessionHandle, 
-            0, 
+            out _sessionHandle,
+            0,
             sessionKey);
 
         if (result != RestartManagerNativeMethods.ErrorSuccess)
@@ -78,7 +78,7 @@ public sealed class RestartManagerClient : IDisposable
 
         uint needed = 0;
         uint count = 0;
-        
+
         // First call to get count
         int result = RestartManagerNativeMethods.RmGetList(
             _sessionHandle,
@@ -121,32 +121,14 @@ public sealed class RestartManagerClient : IDisposable
         ThrowIfDisposed();
         EnsureSessionStarted();
 
-        var flags = forceUnresponsive 
-            ? RmShutdownType.ForceShutdown 
+        var flags = forceUnresponsive
+            ? RmShutdownType.ForceShutdown
             : (RmShutdownType)0;
 
         int result = RestartManagerNativeMethods.RmShutdown(_sessionHandle, flags, null);
 
         if (result != RestartManagerNativeMethods.ErrorSuccess)
             throw new Win32Exception(result, "Failed to shutdown applications.");
-    }
-
-    /// <summary>
-    /// Convenience method: registers files, gets lockers, and optionally shuts down.
-    /// </summary>
-    public List<ProcessLockInfo> AnalyzeFileLockers(params string[] filePaths)
-    {
-        StartSession();
-
-        try
-        {
-            RegisterResources(filePaths);
-            return GetLockers();
-        }
-        finally
-        {
-            EndSession();
-        }
     }
 
     private static ProcessLockInfo MapToProcessLockInfo(RmProcessInfo info)
@@ -195,7 +177,7 @@ public class ProcessLockInfo
     public RmAppType ApplicationType { get; init; }
     public bool IsRestartable { get; init; }
     public int SessionId { get; init; }
-    
+
     public string Description => ApplicationType switch
     {
         RmAppType.Service => $"Service: {ServiceName}",
