@@ -35,83 +35,136 @@ public sealed class FilesTab : UserControl
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 3,
-            Padding = new Padding(12)
+            Padding = new Padding(0)
         };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         Controls.Add(root);
 
-        var top = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false };
-        _pathTextBox = new TextBox { Width = 560, AllowDrop = true };
+        // Header Section
+        var header = new Panel { Dock = DockStyle.Top, Height = 140, Padding = new Padding(0, 20, 0, 0) };
+        var title = new Label
+        {
+            Text = "File Analysis",
+            AutoSize = true,
+            Font = new Font("Segoe UI Light", 24),
+            Tag = "Header",
+            Location = new Point(0, 0)
+        };
+        
+        var inputContainer = new Panel { Location = new Point(0, 60), Size = new Size(800, 60) };
+        _pathTextBox = new TextBox 
+        { 
+            Location = new Point(0, 10), 
+            Width = 500, 
+            Font = new Font("Segoe UI", 11),
+            PlaceholderText = "Paste file or folder path here...",
+            BorderStyle = BorderStyle.FixedSingle,
+            AllowDrop = true
+        };
         _pathTextBox.TextChanged += (_, _) => UpdateButtons();
         _pathTextBox.DragEnter += PathTextBox_DragEnter;
         _pathTextBox.DragDrop += PathTextBox_DragDrop;
 
-        var browseFile = new Button { Text = "Browse File…", AutoSize = true };
+        var browseFile = new Button { Text = "File...", Location = new Point(510, 8), Size = new Size(80, 32), FlatStyle = FlatStyle.Flat };
         browseFile.Click += (_, _) => BrowseFile();
-        var browseFolder = new Button { Text = "Browse Folder…", AutoSize = true };
+        
+        var browseFolder = new Button { Text = "Folder...", Location = new Point(595, 8), Size = new Size(80, 32), FlatStyle = FlatStyle.Flat };
         browseFolder.Click += (_, _) => BrowseFolder();
 
-        _analyzeButton = new Button { Text = "Analyze", AutoSize = true };
+        _analyzeButton = new Button 
+        { 
+            Text = "Analyze", 
+            Location = new Point(685, 8), 
+            Size = new Size(100, 32), 
+            FlatStyle = FlatStyle.Flat,
+            BackColor = services.ThemeManager.CurrentTheme.Primary,
+            ForeColor = Color.White
+        };
         _analyzeButton.Click += async (_, _) => await AnalyzeAsync();
 
-        _recursiveCheckBox = new CheckBox { Text = "Scan recursively", AutoSize = true };
+        _recursiveCheckBox = new CheckBox { Text = "Include subfolders", Font = new Font("Segoe UI", 9), Location = new Point(2, 42), AutoSize = true };
 
-        top.Controls.Add(new Label { Text = "Path:", AutoSize = true, Padding = new Padding(0, 6, 0, 0) });
-        top.Controls.Add(_pathTextBox);
-        top.Controls.Add(browseFile);
-        top.Controls.Add(browseFolder);
-        top.Controls.Add(_analyzeButton);
-        top.Controls.Add(_recursiveCheckBox);
-        root.Controls.Add(top);
+        inputContainer.Controls.Add(_pathTextBox);
+        inputContainer.Controls.Add(browseFile);
+        inputContainer.Controls.Add(browseFolder);
+        inputContainer.Controls.Add(_analyzeButton);
+        inputContainer.Controls.Add(_recursiveCheckBox);
+        
+        header.Controls.Add(title);
+        header.Controls.Add(inputContainer);
+        root.Controls.Add(header, 0, 0);
 
         _lockersGrid = BuildLockersGrid();
-        root.Controls.Add(_lockersGrid);
+        root.Controls.Add(_lockersGrid, 0, 1);
 
-        var bottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
-        _closeSelectedButton = new Button { Text = "Close Selected Apps", AutoSize = true };
+        // Actions Toolbar
+        var actionsBar = new FlowLayoutPanel 
+        { 
+            Dock = DockStyle.Bottom, 
+            AutoSize = true, 
+            Padding = new Padding(0, 20, 0, 0),
+            BackColor = Color.Transparent
+        };
+        
+        _closeSelectedButton = CreateActionBtn("Close Apps", services.ThemeManager.CurrentTheme.Surface);
         _closeSelectedButton.Click += async (_, _) => await CloseSelectedAsync(force: false);
 
-        _forceKillSelectedButton = new Button { Text = "Force Kill Selected", AutoSize = true };
+        _forceKillSelectedButton = CreateActionBtn("Force Kill", services.ThemeManager.CurrentTheme.Surface);
         _forceKillSelectedButton.Click += async (_, _) => await CloseSelectedAsync(force: true);
 
-        _unlockDeleteButton = new Button { Text = "Unlock && Delete", AutoSize = true };
+        _unlockDeleteButton = CreateActionBtn("Unlock & Delete", services.ThemeManager.CurrentTheme.Primary);
+        _unlockDeleteButton.ForeColor = Color.White;
         _unlockDeleteButton.Click += async (_, _) => await UnlockDeleteAsync();
 
-        _unlockRenameButton = new Button { Text = "Unlock && Rename", AutoSize = true };
+        _unlockRenameButton = CreateActionBtn("Rename", services.ThemeManager.CurrentTheme.Surface);
         _unlockRenameButton.Click += async (_, _) => await UnlockRenameAsync();
 
-        _unlockMoveButton = new Button { Text = "Unlock && Move", AutoSize = true };
+        _unlockMoveButton = CreateActionBtn("Move", services.ThemeManager.CurrentTheme.Surface);
         _unlockMoveButton.Click += async (_, _) => await UnlockMoveAsync();
 
-        _unlockCopyButton = new Button { Text = "Unlock && Copy", AutoSize = true };
+        _unlockCopyButton = CreateActionBtn("Copy", services.ThemeManager.CurrentTheme.Surface);
         _unlockCopyButton.Click += async (_, _) => await UnlockCopyAsync();
 
-        _scheduleDeleteButton = new Button { Text = "Schedule Delete at Reboot", AutoSize = true };
+        _scheduleDeleteButton = CreateActionBtn("Reboot-Delete", services.ThemeManager.CurrentTheme.Surface);
         _scheduleDeleteButton.Click += (_, _) => ScheduleDeleteAtReboot();
 
-        _copyBlockersButton = new Button { Text = "Copy Blockers", AutoSize = true };
+        _copyBlockersButton = CreateActionBtn("Copy Info", services.ThemeManager.CurrentTheme.Surface);
         _copyBlockersButton.Click += (_, _) => CopyBlockersToClipboard();
 
-        bottom.Controls.AddRange(new Control[]
+        actionsBar.Controls.AddRange(new Control[]
         {
+            _unlockDeleteButton,
             _closeSelectedButton,
             _forceKillSelectedButton,
-            _unlockDeleteButton,
             _unlockRenameButton,
             _unlockMoveButton,
             _unlockCopyButton,
             _scheduleDeleteButton,
             _copyBlockersButton
         });
-        root.Controls.Add(bottom);
+        root.Controls.Add(actionsBar, 0, 2);
 
         UpdateButtons();
 
-        // Apply theme
         _services.ThemeManager.ApplyToControl(this);
         _services.ThemeManager.ThemeChanged += (_, _) => _services.ThemeManager.ApplyToControl(this);
+    }
+
+    private Button CreateActionBtn(string text, Color backColor)
+    {
+        return new Button
+        {
+            Text = text,
+            AutoSize = true,
+            Height = 36,
+            Padding = new Padding(10, 0, 10, 0),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = backColor,
+            Margin = new Padding(0, 0, 10, 0),
+            Font = new Font("Segoe UI Semibold", 9)
+        };
     }
 
     private DataGridView BuildLockersGrid()

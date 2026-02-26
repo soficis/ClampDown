@@ -11,7 +11,7 @@ public sealed record HelperSession
 
 public static class HelperSessionFactory
 {
-    public static HelperSession CreateForCurrentProcess(string pipePrefix = "ClampDown.Helper")
+    public static HelperSession CreateForCurrentProcess(string pipePrefix = "ClampDown")
     {
         if (string.IsNullOrWhiteSpace(pipePrefix))
             throw new ArgumentException("Pipe prefix cannot be empty.", nameof(pipePrefix));

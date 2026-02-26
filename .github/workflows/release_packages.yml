@@ -46,7 +46,7 @@ jobs:
       - name: Build (Release)
         run: dotnet build ClampDown.sln -c Release --no-restore
 
-      - name: Publish win-x64 bundle
+      - name: Publish win-x64 executable
         shell: pwsh
         run: ./scripts/Publish-Exe.ps1 -Runtime win-x64 -Configuration Release
 
@@ -56,9 +56,9 @@ jobs:
           $releaseRoot = "dist/release/windows"
           New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
 
-          $bundlePath = "dist/ClampDown.Bundle/win-x64"
-          if (-not (Test-Path $bundlePath)) {
-            throw "Bundle not found at $bundlePath"
+          $exePath = "dist/ClampDown/win-x64/ClampDown.exe"
+          if (-not (Test-Path $exePath)) {
+            throw "Executable not found at $exePath"
           }
 
           $zipName = "ClampDown-windows-x64.zip"
@@ -67,7 +67,7 @@ jobs:
             Remove-Item $zipPath -Force
           }
 
-          Compress-Archive -Path "$bundlePath/*" -DestinationPath $zipPath -CompressionLevel Optimal
+          Compress-Archive -Path $exePath -DestinationPath $zipPath -CompressionLevel Optimal
 
           $hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
           "$hash  $zipName" | Set-Content "$zipPath.sha256"

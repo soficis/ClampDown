@@ -9,93 +9,151 @@ namespace ClampDown.UI.Tabs;
 public sealed class SettingsTab : UserControl
 {
     private readonly UiServices _services;
-    private readonly CheckBox _autoStartCheckBox;
 
     public SettingsTab(UiServices services)
     {
         _services = services;
 
-        var panel = new TableLayoutPanel
+        var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 11,
-            Padding = new Padding(12)
+            RowCount = 2,
+            Padding = new Padding(0)
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        Controls.Add(panel);
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        Controls.Add(root);
 
-        // Theme Section
-        panel.Controls.Add(new Label { Text = "Appearance", AutoSize = true, Font = new Font(Font.FontFamily, 10, FontStyle.Bold) });
-
-        var themeButtons = new FlowLayoutPanel { AutoSize = true };
-        var darkModeButton = new Button { Text = "Dark Mode", Width = 100 };
-        darkModeButton.Click += (_, _) => _services.ThemeManager.SetTheme(Theme.Dark);
-
-        var lightModeButton = new Button { Text = "Light Mode", Width = 100 };
-        lightModeButton.Click += (_, _) => _services.ThemeManager.SetTheme(Theme.Light);
-
-        themeButtons.Controls.Add(darkModeButton);
-        themeButtons.Controls.Add(lightModeButton);
-        panel.Controls.Add(themeButtons);
-
-        panel.Controls.Add(new Label
+        // Header Section
+        var header = new Panel { Dock = DockStyle.Top, Height = 80, Padding = new Padding(0, 20, 0, 0) };
+        var title = new Label
         {
-            Text = "Choose between dark and light color themes.",
+            Text = "Preferences",
             AutoSize = true,
-            Padding = new Padding(0, 0, 0, 12)
-        });
+            Font = new Font("Segoe UI Light", 24),
+            Tag = "Header",
+            Location = new Point(0, 0)
+        };
+        header.Controls.Add(title);
+        root.Controls.Add(header, 0, 0);
 
-        panel.Controls.Add(new Label { Text = "Elevation", AutoSize = true, Font = new Font(Font.FontFamily, 10, FontStyle.Bold) });
-
-        var elevationButtons = new FlowLayoutPanel { AutoSize = true };
-        var startHelper = new Button { Text = "Start Elevated Helper" };
-        startHelper.Click += (_, _) => StartHelper();
-
-        var restartAdmin = new Button { Text = "Restart as Administrator" };
-        restartAdmin.Click += (_, _) => RestartAsAdmin();
-
-        elevationButtons.Controls.Add(startHelper);
-        elevationButtons.Controls.Add(restartAdmin);
-        panel.Controls.Add(elevationButtons);
-
-        panel.Controls.Add(new Label { Text = "Startup", AutoSize = true, Font = new Font(Font.FontFamily, 10, FontStyle.Bold), Padding = new Padding(0, 12, 0, 0) });
-
-        _autoStartCheckBox = new CheckBox { Text = "Start ClampDown at Windows login (current user)", AutoSize = true };
-        _autoStartCheckBox.Checked = IsAutoStartEnabled();
-        _autoStartCheckBox.CheckedChanged += (_, _) => ToggleAutoStart();
-        panel.Controls.Add(_autoStartCheckBox);
-
-        panel.Controls.Add(new Label
+        var content = new FlowLayoutPanel
         {
-            Text = "This uses the current user Run key (no admin required).",
-            AutoSize = true
-        });
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            AutoScroll = true,
+            Padding = new Padding(0, 20, 0, 0)
+        };
+        root.Controls.Add(content, 0, 1);
 
-        // Apply theme
+        // Section: Appearance
+        AddSectionHeader(content, "Appearance");
+        var themeRow = AddSettingRow(content, "Theme", "Switch between Dark and Light mode.");
+        var themeButtons = new FlowLayoutPanel { AutoSize = true, BackColor = Color.Transparent };
+        
+        var darkBtn = CreateActionBtn("Dark", services.ThemeManager.CurrentTheme.Surface);
+        darkBtn.Click += (_, _) => services.ThemeManager.SetTheme(Theme.Dark);
+        
+        var lightBtn = CreateActionBtn("Light", services.ThemeManager.CurrentTheme.Surface);
+        lightBtn.Click += (_, _) => services.ThemeManager.SetTheme(Theme.Light);
+        
+        themeButtons.Controls.Add(darkBtn);
+        themeButtons.Controls.Add(lightBtn);
+        themeRow.Controls.Add(themeButtons);
+
+        // Section: System
+        AddSectionHeader(content, "System");
+        var autoStartRow = AddSettingRow(content, "Startup", "Launch ClampDown when you log in.");
+        var autoStartCheckBox = new CheckBox { Text = "Enabled", AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
+        autoStartCheckBox.Checked = IsAutoStartEnabled();
+        autoStartCheckBox.CheckedChanged += (_, _) => ToggleAutoStart(autoStartCheckBox);
+        autoStartRow.Controls.Add(autoStartCheckBox);
+
+        // Section: Elevation
+        AddSectionHeader(content, "Privileges");
+        var elevRow = AddSettingRow(content, "Elevation", "Run operations with administrative rights.");
+        var elevButtons = new FlowLayoutPanel { AutoSize = true, BackColor = Color.Transparent };
+        
+        var helperBtn = CreateActionBtn("Start Helper", services.ThemeManager.CurrentTheme.Surface);
+        helperBtn.Click += (_, _) => StartHelper();
+        
+        var adminBtn = CreateActionBtn("Restart as Admin", services.ThemeManager.CurrentTheme.Surface);
+        adminBtn.Click += (_, _) => RestartAsAdmin();
+        
+        elevButtons.Controls.Add(helperBtn);
+        elevButtons.Controls.Add(adminBtn);
+        elevRow.Controls.Add(elevButtons);
+
+        // Section: About
+        AddSectionHeader(content, "About");
+        var aboutRow = AddSettingRow(content, "ClampDown v0.4.0", "Experimental file lock manager.\r\nUse with caution.");
+        content.Controls.Add(aboutRow);
+
         _services.ThemeManager.ApplyToControl(this);
         _services.ThemeManager.ThemeChanged += (_, _) => _services.ThemeManager.ApplyToControl(this);
+    }
+
+    private void AddSectionHeader(FlowLayoutPanel parent, string text)
+    {
+        parent.Controls.Add(new Label
+        {
+            Text = text.ToUpper(),
+            Font = new Font("Segoe UI Semibold", 9),
+            ForeColor = _services.ThemeManager.CurrentTheme.Primary,
+            Margin = new Padding(0, 30, 0, 10),
+            AutoSize = true,
+            Tag = "Accent"
+        });
+    }
+
+    private FlowLayoutPanel AddSettingRow(FlowLayoutPanel parent, string title, string description)
+    {
+        var row = new FlowLayoutPanel { Width = 600, AutoSize = true, FlowDirection = FlowDirection.TopDown, Margin = new Padding(0, 0, 0, 20) };
+        row.Controls.Add(new Label { Text = title, Font = new Font("Segoe UI Semibold", 11), AutoSize = true });
+        row.Controls.Add(new Label { Text = description, Font = new Font("Segoe UI", 9.5f), ForeColor = _services.ThemeManager.CurrentTheme.SecondaryText, AutoSize = true, MaximumSize = new Size(580, 0) });
+        parent.Controls.Add(row);
+        return row;
+    }
+
+    private Button CreateActionBtn(string text, Color backColor)
+    {
+        return new Button
+        {
+            Text = text,
+            AutoSize = true,
+            Height = 32,
+            Padding = new Padding(10, 0, 10, 0),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = backColor,
+            Margin = new Padding(0, 8, 10, 0),
+            Font = new Font("Segoe UI Semibold", 9)
+        };
+    }
+
+    private void ToggleAutoStart(CheckBox cb)
+    {
+        try
+        {
+            SetAutoStartEnabled(cb.Checked);
+        }
+        catch (Exception ex)
+        {
+            cb.Checked = IsAutoStartEnabled();
+            MessageBox.Show(this, ex.Message, "Startup setting failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void StartHelper()
     {
         if (!_services.ElevatedHelperLauncher.TryStart(out var errorMessage))
         {
-            MessageBox.Show(this, errorMessage ?? "Failed to start elevated helper.", "Helper not found", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, errorMessage ?? "Failed to start elevated helper mode.", "Helper start failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
-        _services.ActionLogger.Log(ActionType.HelperStart, "ClampDown.Helper", ActionResult.Success, elevationUsed: true, details: "Requested elevated helper start.");
+        _services.ActionLogger.Log(ActionType.HelperStart, "ClampDown", ActionResult.Success, elevationUsed: true, details: "Requested elevated helper mode start.");
         MessageBox.Show(this, "Elevated helper start requested.", "Helper", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
@@ -130,19 +188,6 @@ public sealed class SettingsTab : UserControl
         catch (Exception ex)
         {
             MessageBox.Show(this, ex.Message, "Restart failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-    }
-
-    private void ToggleAutoStart()
-    {
-        try
-        {
-            SetAutoStartEnabled(_autoStartCheckBox.Checked);
-        }
-        catch (Exception ex)
-        {
-            _autoStartCheckBox.Checked = IsAutoStartEnabled();
-            MessageBox.Show(this, ex.Message, "Startup setting failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 

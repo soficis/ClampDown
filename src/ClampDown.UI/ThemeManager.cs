@@ -74,7 +74,12 @@ public sealed class ThemeManager
                 break;
 
             case Label label:
-                label.ForeColor = label.Font.Bold ? _currentTheme.PrimaryText : _currentTheme.SecondaryText;
+                if (label.Tag?.ToString() == "Header")
+                    label.ForeColor = _currentTheme.PrimaryText;
+                else if (label.Tag?.ToString() == "Accent")
+                    label.ForeColor = _currentTheme.Primary;
+                else
+                    label.ForeColor = label.Font.Bold ? _currentTheme.PrimaryText : _currentTheme.SecondaryText;
                 break;
 
             case DataGridView grid:
@@ -82,17 +87,17 @@ public sealed class ThemeManager
                 break;
 
             case TableLayoutPanel tablePanel:
-                tablePanel.BackColor = _currentTheme.Background;
+                tablePanel.BackColor = tablePanel.Tag?.ToString() == "Sidebar" ? _currentTheme.Gutter : _currentTheme.Background;
                 tablePanel.ForeColor = _currentTheme.PrimaryText;
                 break;
 
-            case FlowLayoutPanel flowPanel:
-                flowPanel.BackColor = _currentTheme.Background;
-                flowPanel.ForeColor = _currentTheme.PrimaryText;
-                break;
-
             case Panel panel:
-                panel.BackColor = _currentTheme.Background;
+                if (panel.Tag?.ToString() == "Sidebar")
+                    panel.BackColor = _currentTheme.Gutter;
+                else if (panel.Tag?.ToString() == "Surface")
+                    panel.BackColor = _currentTheme.Surface;
+                else
+                    panel.BackColor = _currentTheme.Background;
                 panel.ForeColor = _currentTheme.PrimaryText;
                 break;
         }

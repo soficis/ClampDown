@@ -7,7 +7,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ClampDown.UI</RootNamespace>
+    <AssemblyName>ClampDown</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\ClampDown.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

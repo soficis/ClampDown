@@ -18,38 +18,74 @@ public sealed class LogsTab : UserControl
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 2,
-            Padding = new Padding(12)
+            RowCount = 3,
+            Padding = new Padding(0)
         };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         Controls.Add(root);
 
-        _grid = BuildGrid();
-        root.Controls.Add(_grid);
+        // Header Section
+        var header = new Panel { Dock = DockStyle.Top, Height = 80, Padding = new Padding(0, 20, 0, 0) };
+        var title = new Label
+        {
+            Text = "Activity Log",
+            AutoSize = true,
+            Font = new Font("Segoe UI Light", 24),
+            Tag = "Header",
+            Location = new Point(0, 0)
+        };
+        header.Controls.Add(title);
+        root.Controls.Add(header, 0, 0);
 
-        var bottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
-        var exportJson = new Button { Text = "Export JSON…", AutoSize = true };
+        _grid = BuildGrid();
+        root.Controls.Add(_grid, 0, 1);
+
+        // Actions Toolbar
+        var actionsBar = new FlowLayoutPanel 
+        { 
+            Dock = DockStyle.Bottom, 
+            AutoSize = true, 
+            Padding = new Padding(0, 20, 0, 0),
+            BackColor = Color.Transparent
+        };
+        
+        var exportJson = CreateActionBtn("Export JSON", services.ThemeManager.CurrentTheme.Surface);
         exportJson.Click += async (_, _) => await ExportLogsAsync("json");
 
-        var exportMarkdown = new Button { Text = "Export Markdown…", AutoSize = true };
+        var exportMarkdown = CreateActionBtn("Export MD", services.ThemeManager.CurrentTheme.Surface);
         exportMarkdown.Click += async (_, _) => await ExportLogsAsync("md");
 
-        var exportBundle = new Button { Text = "Export Support Bundle…", AutoSize = true };
+        var exportBundle = CreateActionBtn("Support Bundle", services.ThemeManager.CurrentTheme.Surface);
         exportBundle.Click += async (_, _) => await ExportSupportBundleAsync();
 
-        var clear = new Button { Text = "Clear Log", AutoSize = true };
+        var clear = CreateActionBtn("Clear Log", services.ThemeManager.CurrentTheme.Surface);
         clear.Click += (_, _) => ClearLogs();
 
-        bottom.Controls.AddRange(new Control[] { exportJson, exportMarkdown, exportBundle, clear });
-        root.Controls.Add(bottom);
+        actionsBar.Controls.AddRange(new Control[] { exportJson, exportMarkdown, exportBundle, clear });
+        root.Controls.Add(actionsBar, 0, 2);
 
         _services.ActionLogger.Changed += (_, _) => Reload();
         Reload();
 
-        // Apply theme
         _services.ThemeManager.ApplyToControl(this);
         _services.ThemeManager.ThemeChanged += (_, _) => _services.ThemeManager.ApplyToControl(this);
+    }
+
+    private Button CreateActionBtn(string text, Color backColor)
+    {
+        return new Button
+        {
+            Text = text,
+            AutoSize = true,
+            Height = 36,
+            Padding = new Padding(10, 0, 10, 0),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = backColor,
+            Margin = new Padding(0, 0, 10, 0),
+            Font = new Font("Segoe UI Semibold", 9)
+        };
     }
 
     private DataGridView BuildGrid()

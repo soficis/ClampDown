@@ -1,6 +1,6 @@
 namespace ClampDown.Cli;
 
-internal enum TopLevelCommand
+public enum TopLevelCommand
 {
     Help = 0,
     Analyze = 1,
@@ -12,14 +12,14 @@ internal enum TopLevelCommand
     Unknown = 7
 }
 
-internal sealed record TopLevelParseResult
+public sealed record TopLevelParseResult
 {
     public required TopLevelCommand Command { get; init; }
     public string RawCommand { get; init; } = string.Empty;
     public string[] RemainingArgs { get; init; } = [];
 }
 
-internal static class CliTopLevelParser
+public static class CliTopLevelParser
 {
     public static TopLevelParseResult Parse(string[] args)
     {

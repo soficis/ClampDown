@@ -2,23 +2,34 @@ using System.Drawing;
 using System.Windows.Forms;
 using ClampDown.Win32;
 
-ApplicationConfiguration.Initialize();
+namespace ClampDown.UI;
 
-using var tray = new ClampDownTrayApplication();
-Application.Run();
+internal static class TrayRunner
+{
+    public static int Run()
+    {
+        ApplicationConfiguration.Initialize();
+
+        using var tray = new ClampDownTrayApplication();
+        Application.Run();
+        return 0;
+    }
+}
 
 internal sealed class ClampDownTrayApplication : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
     private readonly ContextMenuStrip _menu;
+    private readonly Icon _icon;
 
     public ClampDownTrayApplication()
     {
         _menu = new ContextMenuStrip();
+        _icon = AppIconLoader.Load();
         _notifyIcon = new NotifyIcon
         {
             Text = "ClampDown",
-            Icon = SystemIcons.Application,
+            Icon = _icon,
             Visible = true,
             ContextMenuStrip = _menu
         };
@@ -107,6 +118,6 @@ internal sealed class ClampDownTrayApplication : IDisposable
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _menu.Dispose();
+        _icon.Dispose();
     }
 }
-

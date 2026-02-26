@@ -1,9 +1,9 @@
 {
   "profiles": {
-    "ClampDown.UI (Package)": {
+    "ClampDown (Package)": {
       "commandName": "MsixPackage"
     },
-    "ClampDown.UI (Unpackaged)": {
+    "ClampDown (Unpackaged)": {
       "commandName": "Project"
     }
   }

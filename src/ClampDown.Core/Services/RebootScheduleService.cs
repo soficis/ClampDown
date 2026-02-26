@@ -153,7 +153,7 @@ public sealed class RebootScheduleService
         sb.AppendLine($"Schedule error: {scheduleError.Message}");
         sb.AppendLine($"Helper error: {helperError.Message}");
         sb.AppendLine();
-        sb.AppendLine("Run ClampDown as Administrator, or start ClampDown.Helper elevated and try again.");
+        sb.AppendLine("Run ClampDown as Administrator, or use Settings -> Start Elevated Helper and try again.");
         return sb.ToString().Trim();
     }
 }

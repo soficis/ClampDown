@@ -29,44 +29,93 @@ public sealed class DrivesTab : UserControl
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 3,
-            Padding = new Padding(12)
+            Padding = new Padding(0)
         };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         Controls.Add(root);
 
-        var top = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
-        _refreshButton = new Button { Text = "Refresh" };
+        // Header Section
+        var header = new Panel { Dock = DockStyle.Top, Height = 100, Padding = new Padding(0, 20, 0, 0) };
+        var title = new Label
+        {
+            Text = "Drive Management",
+            AutoSize = true,
+            Font = new Font("Segoe UI Light", 24),
+            Tag = "Header",
+            Location = new Point(0, 0)
+        };
+        
+        _refreshButton = new Button 
+        { 
+            Text = "Refresh List", 
+            Location = new Point(0, 55), 
+            Size = new Size(120, 32), 
+            FlatStyle = FlatStyle.Flat,
+            BackColor = services.ThemeManager.CurrentTheme.Surface,
+            Font = new Font("Segoe UI Semibold", 9)
+        };
         _refreshButton.Click += (_, _) => ReloadDrives();
-        top.Controls.Add(_refreshButton);
-        root.Controls.Add(top);
+        
+        header.Controls.Add(title);
+        header.Controls.Add(_refreshButton);
+        root.Controls.Add(header, 0, 0);
 
         _drivesGrid = BuildDrivesGrid();
-        root.Controls.Add(_drivesGrid);
+        root.Controls.Add(_drivesGrid, 0, 1);
 
-        var bottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
-        _closeExplorerButton = new Button { Text = "Close Explorer" };
-        _closeExplorerButton.Click += (_, _) => CloseExplorerForSelectedDrive();
-
-        _stopAppsButton = new Button { Text = "Stop Apps" };
-        _stopAppsButton.Click += async (_, _) => await StopAppsFromSelectedDriveAsync();
-
-        _showLockersButton = new Button { Text = "Show Lockers" };
-        _showLockersButton.Click += async (_, _) => await ShowDriveLockersAsync();
-
-        _safeEjectButton = new Button { Text = "Safe Eject" };
+        // Actions Toolbar
+        var actionsBar = new FlowLayoutPanel 
+        { 
+            Dock = DockStyle.Bottom, 
+            AutoSize = true, 
+            Padding = new Padding(0, 20, 0, 0),
+            BackColor = Color.Transparent
+        };
+        
+        _safeEjectButton = CreateActionBtn("Safe Eject", services.ThemeManager.CurrentTheme.Primary);
+        _safeEjectButton.ForeColor = Color.White;
         _safeEjectButton.Click += async (_, _) => await SafeEjectSelectedDriveAsync();
 
-        bottom.Controls.AddRange(new Control[] { _closeExplorerButton, _stopAppsButton, _showLockersButton, _safeEjectButton });
-        root.Controls.Add(bottom);
+        _showLockersButton = CreateActionBtn("Show Lockers", services.ThemeManager.CurrentTheme.Surface);
+        _showLockersButton.Click += async (_, _) => await ShowDriveLockersAsync();
+
+        _stopAppsButton = CreateActionBtn("Stop Apps", services.ThemeManager.CurrentTheme.Surface);
+        _stopAppsButton.Click += async (_, _) => await StopAppsFromSelectedDriveAsync();
+
+        _closeExplorerButton = CreateActionBtn("Close Explorer", services.ThemeManager.CurrentTheme.Surface);
+        _closeExplorerButton.Click += (_, _) => CloseExplorerForSelectedDrive();
+
+        actionsBar.Controls.AddRange(new Control[] 
+        { 
+            _safeEjectButton,
+            _showLockersButton,
+            _stopAppsButton, 
+            _closeExplorerButton 
+        });
+        root.Controls.Add(actionsBar, 0, 2);
 
         ReloadDrives();
         UpdateButtons();
 
-        // Apply theme
         _services.ThemeManager.ApplyToControl(this);
         _services.ThemeManager.ThemeChanged += (_, _) => _services.ThemeManager.ApplyToControl(this);
+    }
+
+    private Button CreateActionBtn(string text, Color backColor)
+    {
+        return new Button
+        {
+            Text = text,
+            AutoSize = true,
+            Height = 36,
+            Padding = new Padding(10, 0, 10, 0),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = backColor,
+            Margin = new Padding(0, 0, 10, 0),
+            Font = new Font("Segoe UI Semibold", 9)
+        };
     }
 
     private DataGridView BuildDrivesGrid()
