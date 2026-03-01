@@ -53,7 +53,7 @@ public sealed class OverviewTab : UserControl
             Padding = new Padding(0, 20, 0, 0),
             AutoScroll = true
         };
-        
+
         cardsFlow.Controls.Add(CreatePremiumCard(
             "Files",
             "Identify and release locked files with surgical precision.",

@@ -8,7 +8,7 @@ internal static class UiPrompt
     {
         // Get the UI services to access theme manager
         var services = (owner as Form)?.Tag as UiServices;
-        
+
         using var dialog = new Form
         {
             Text = title,
@@ -22,7 +22,7 @@ internal static class UiPrompt
 
         var labelControl = new Label { Text = label, Left = 20, Top = 20, AutoSize = true };
         var input = new TextBox { Left = 20, Top = 50, Width = 465, Text = initialValue, Font = new Font("Segoe UI", 10) };
-        
+
         var ok = new Button { Text = "OK", Left = 320, Width = 80, Height = 32, Top = 95, FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.OK };
         var cancel = new Button { Text = "Cancel", Left = 405, Width = 80, Height = 32, Top = 95, FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.Cancel };
 

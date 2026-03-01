@@ -43,14 +43,14 @@ public sealed class LogsTab : UserControl
         root.Controls.Add(_grid, 0, 1);
 
         // Actions Toolbar
-        var actionsBar = new FlowLayoutPanel 
-        { 
-            Dock = DockStyle.Bottom, 
-            AutoSize = true, 
+        var actionsBar = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            AutoSize = true,
             Padding = new Padding(0, 20, 0, 0),
             BackColor = Color.Transparent
         };
-        
+
         var exportJson = CreateActionBtn("Export JSON", services.ThemeManager.CurrentTheme.Surface);
         exportJson.Click += async (_, _) => await ExportLogsAsync("json");
 

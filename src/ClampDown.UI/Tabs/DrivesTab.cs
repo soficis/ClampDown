@@ -46,18 +46,18 @@ public sealed class DrivesTab : UserControl
             Tag = "Header",
             Location = new Point(0, 0)
         };
-        
-        _refreshButton = new Button 
-        { 
-            Text = "Refresh List", 
-            Location = new Point(0, 55), 
-            Size = new Size(120, 32), 
+
+        _refreshButton = new Button
+        {
+            Text = "Refresh List",
+            Location = new Point(0, 55),
+            Size = new Size(120, 32),
             FlatStyle = FlatStyle.Flat,
             BackColor = services.ThemeManager.CurrentTheme.Surface,
             Font = new Font("Segoe UI Semibold", 9)
         };
         _refreshButton.Click += (_, _) => ReloadDrives();
-        
+
         header.Controls.Add(title);
         header.Controls.Add(_refreshButton);
         root.Controls.Add(header, 0, 0);
@@ -66,14 +66,14 @@ public sealed class DrivesTab : UserControl
         root.Controls.Add(_drivesGrid, 0, 1);
 
         // Actions Toolbar
-        var actionsBar = new FlowLayoutPanel 
-        { 
-            Dock = DockStyle.Bottom, 
-            AutoSize = true, 
+        var actionsBar = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            AutoSize = true,
             Padding = new Padding(0, 20, 0, 0),
             BackColor = Color.Transparent
         };
-        
+
         _safeEjectButton = CreateActionBtn("Safe Eject", services.ThemeManager.CurrentTheme.Primary);
         _safeEjectButton.ForeColor = Color.White;
         _safeEjectButton.Click += async (_, _) => await SafeEjectSelectedDriveAsync();
@@ -87,12 +87,12 @@ public sealed class DrivesTab : UserControl
         _closeExplorerButton = CreateActionBtn("Close Explorer", services.ThemeManager.CurrentTheme.Surface);
         _closeExplorerButton.Click += (_, _) => CloseExplorerForSelectedDrive();
 
-        actionsBar.Controls.AddRange(new Control[] 
-        { 
+        actionsBar.Controls.AddRange(new Control[]
+        {
             _safeEjectButton,
             _showLockersButton,
-            _stopAppsButton, 
-            _closeExplorerButton 
+            _stopAppsButton,
+            _closeExplorerButton
         });
         root.Controls.Add(actionsBar, 0, 2);
 

@@ -52,12 +52,12 @@ public sealed class FilesTab : UserControl
             Tag = "Header",
             Location = new Point(0, 0)
         };
-        
+
         var inputContainer = new Panel { Location = new Point(0, 60), Size = new Size(800, 60) };
-        _pathTextBox = new TextBox 
-        { 
-            Location = new Point(0, 10), 
-            Width = 500, 
+        _pathTextBox = new TextBox
+        {
+            Location = new Point(0, 10),
+            Width = 500,
             Font = new Font("Segoe UI", 11),
             PlaceholderText = "Paste file or folder path here...",
             BorderStyle = BorderStyle.FixedSingle,
@@ -69,15 +69,15 @@ public sealed class FilesTab : UserControl
 
         var browseFile = new Button { Text = "File...", Location = new Point(510, 8), Size = new Size(80, 32), FlatStyle = FlatStyle.Flat };
         browseFile.Click += (_, _) => BrowseFile();
-        
+
         var browseFolder = new Button { Text = "Folder...", Location = new Point(595, 8), Size = new Size(80, 32), FlatStyle = FlatStyle.Flat };
         browseFolder.Click += (_, _) => BrowseFolder();
 
-        _analyzeButton = new Button 
-        { 
-            Text = "Analyze", 
-            Location = new Point(685, 8), 
-            Size = new Size(100, 32), 
+        _analyzeButton = new Button
+        {
+            Text = "Analyze",
+            Location = new Point(685, 8),
+            Size = new Size(100, 32),
             FlatStyle = FlatStyle.Flat,
             BackColor = services.ThemeManager.CurrentTheme.Primary,
             ForeColor = Color.White
@@ -91,7 +91,7 @@ public sealed class FilesTab : UserControl
         inputContainer.Controls.Add(browseFolder);
         inputContainer.Controls.Add(_analyzeButton);
         inputContainer.Controls.Add(_recursiveCheckBox);
-        
+
         header.Controls.Add(title);
         header.Controls.Add(inputContainer);
         root.Controls.Add(header, 0, 0);
@@ -100,14 +100,14 @@ public sealed class FilesTab : UserControl
         root.Controls.Add(_lockersGrid, 0, 1);
 
         // Actions Toolbar
-        var actionsBar = new FlowLayoutPanel 
-        { 
-            Dock = DockStyle.Bottom, 
-            AutoSize = true, 
+        var actionsBar = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            AutoSize = true,
             Padding = new Padding(0, 20, 0, 0),
             BackColor = Color.Transparent
         };
-        
+
         _closeSelectedButton = CreateActionBtn("Close Apps", services.ThemeManager.CurrentTheme.Surface);
         _closeSelectedButton.Click += async (_, _) => await CloseSelectedAsync(force: false);
 

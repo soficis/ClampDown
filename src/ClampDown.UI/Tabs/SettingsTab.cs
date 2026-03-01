@@ -52,13 +52,13 @@ public sealed class SettingsTab : UserControl
         AddSectionHeader(content, "Appearance");
         var themeRow = AddSettingRow(content, "Theme", "Switch between Dark and Light mode.");
         var themeButtons = new FlowLayoutPanel { AutoSize = true, BackColor = Color.Transparent };
-        
+
         var darkBtn = CreateActionBtn("Dark", services.ThemeManager.CurrentTheme.Surface);
         darkBtn.Click += (_, _) => services.ThemeManager.SetTheme(Theme.Dark);
-        
+
         var lightBtn = CreateActionBtn("Light", services.ThemeManager.CurrentTheme.Surface);
         lightBtn.Click += (_, _) => services.ThemeManager.SetTheme(Theme.Light);
-        
+
         themeButtons.Controls.Add(darkBtn);
         themeButtons.Controls.Add(lightBtn);
         themeRow.Controls.Add(themeButtons);
@@ -75,13 +75,13 @@ public sealed class SettingsTab : UserControl
         AddSectionHeader(content, "Privileges");
         var elevRow = AddSettingRow(content, "Elevation", "Run operations with administrative rights.");
         var elevButtons = new FlowLayoutPanel { AutoSize = true, BackColor = Color.Transparent };
-        
+
         var helperBtn = CreateActionBtn("Start Helper", services.ThemeManager.CurrentTheme.Surface);
         helperBtn.Click += (_, _) => StartHelper();
-        
+
         var adminBtn = CreateActionBtn("Restart as Admin", services.ThemeManager.CurrentTheme.Surface);
         adminBtn.Click += (_, _) => RestartAsAdmin();
-        
+
         elevButtons.Controls.Add(helperBtn);
         elevButtons.Controls.Add(adminBtn);
         elevRow.Controls.Add(elevButtons);
